@@ -99,4 +99,16 @@ export function themeFrom(bgHex) {
   };
 }
 
-export const BG_PRESETS = ['#121311', '#0A0A09', '#0E1512', '#F4F1EA', '#FFFFFF', '#EDE6D6'];
+export const BG_PRESETS = [
+  { color: '#121311', label: '墨黑' },
+  { color: '#0A0A09', label: '纯黑' },
+  { color: '#0E1512', label: '松墨绿' },
+  { color: '#F4F1EA', label: '纸白' },
+  { color: '#FFFFFF', label: '亮白' },
+  { color: '#EDE6D6', label: '米黄' },
+];
+
+export function bgLabel(hex) {
+  const hit = BG_PRESETS.find(p => p.color.toLowerCase() === String(hex).toLowerCase());
+  return hit ? hit.label : String(hex).toUpperCase();
+}

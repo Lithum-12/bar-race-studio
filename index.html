@@ -142,7 +142,18 @@
       <h4>颜色</h4>
       <div class="grid2">
         <label>配色方案<select id="paletteSel"></select></label>
-        <label>画布背景<div class="swatches" id="bgSwatches"></div></label>
+        <div class="combo" id="bgCombo">
+          <span>画布背景</span>
+          <button type="button" class="combo-btn" id="bgBtn" aria-haspopup="listbox" aria-expanded="false">
+            <span class="chip" id="bgChip"></span>
+            <span id="bgText">—</span>
+            <svg class="caret" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+              <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <div class="combo-list" id="bgList" role="listbox" aria-label="画布背景" hidden></div>
+          <input type="color" id="bgCustom" class="combo-picker" aria-label="自定义背景色" />
+        </div>
       </div>
     </div>
 

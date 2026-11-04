@@ -408,7 +408,9 @@ body[data-drawer] .drawer { transform: none }
   height: 1px;
   background: var(--rule);
 }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px }
+/* align-items:start：每个标签只占自身高度。默认的 stretch 会让同列里更高的
+   控件把本标签拉伸，而箭头是按标签底边定位的，一拉伸就掉到框外面。 */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; align-items: start }
 .grid2 label {
   position: relative;
   display: flex;
@@ -440,32 +442,83 @@ body[data-drawer] .drawer { transform: none }
   }
 }
 
-.swatches { display: flex; gap: 6px; align-items: center; flex-wrap: wrap }
-.swatch {
+/* 画布背景下拉：每行「色块 + 名称 + 十六进制」 */
+.combo {
   position: relative;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 1px solid var(--rule-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.combo-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 9px;
+  background: var(--sunken);
+  border: 1px solid var(--rule);
   border-radius: var(--radius);
   cursor: pointer;
+  color: var(--ink);
 }
-.swatch:hover { border-color: var(--ink-3) }
-.swatch[aria-pressed="true"] { border-color: var(--ink) }
-.swatch[aria-pressed="true"]::after {
-  content: "";
+.combo-btn:hover { border-color: var(--rule-2) }
+.combo-btn .caret { margin-left: auto; color: var(--ink-3) }
+.chip {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--rule-2);
+  border-radius: 1px;
+  background: transparent;
+}
+.combo-list {
   position: absolute;
-  left: 6px;
-  top: 8px;
-  width: 10px;
-  height: 5px;
-  border-left: 2px solid var(--chk);
-  border-bottom: 2px solid var(--chk);
-  transform: rotate(-45deg);
+  z-index: 6;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  display: flex;
+  flex-direction: column;
+  max-height: 232px;
+  overflow: auto;
+  padding: 3px;
+  background: var(--panel);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius);
 }
-.swatch[data-ink="light"] { --chk: #F7F4EC }
-.swatch[data-ink="dark"] { --chk: #1C1B19 }
-input[type="color"] { width: 30px; height: 24px; padding: 1px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sunken); cursor: pointer }
+/* display:flex 会盖掉 hidden 属性，必须显式收回 */
+.combo-list[hidden] { display: none }
+.combo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 7px;
+  border-radius: 1px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.combo-row:hover, .combo-row.active { background: var(--sunken) }
+.combo-row[aria-selected="true"] { background: var(--accent-soft) }
+.combo-row[aria-selected="true"] .chip { border-color: var(--accent) }
+.combo-hex {
+  margin-left: auto;
+  font: 400 11px/1 var(--mono);
+  color: var(--ink-3);
+}
+/* 原生取色器只要能被程序点开，不参与布局 */
+.combo-picker {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
 
 .hint { font-size: 12px; color: var(--ink-3); margin: 0 0 8px }
 

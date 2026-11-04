@@ -14,7 +14,7 @@ import { createScene } from './render.js';
 import { createClock } from './anim.js';
 import { periodLabel, periodKey, periodTick, parseStart, startHint, GRANULARITIES, GRAN_LABEL } from './time.js';
 import { FONTS, FONT_SCALE_KEYS } from './text.js';
-import { PALETTES, BG_PRESETS, brightness } from './color.js';
+import { PALETTES, BG_PRESETS, bgLabel, normalizeHex } from './color.js';
 import { exportVideo, exportPngSequence, exportStill, download } from './recorder.js';
 
 const $ = id => document.getElementById(id);
@@ -397,17 +397,115 @@ function syncDrawer() {
   $('exHSel').value = cfg.export.height;
   $('brSel').value = cfg.export.bitrateMbps;
   $('alphaSel').checked = cfg.export.transparent;
-  markSwatch();
+  syncBgCombo();
   renderEvents();
 }
 
-function markSwatch() {
-  const bg = app.chart.cfg.style.bg.toLowerCase();
-  for (const b of $('bgSwatches').children) {
-    if (b.dataset.color) b.setAttribute('aria-pressed', String(b.dataset.color.toLowerCase() === bg));
+/* ---------- 画布背景下拉 ---------- */
+let bgOpen = false;
+let bgActive = 0;
+
+const bgIndex = () => BG_PRESETS.findIndex(p => p.color.toLowerCase() === app.chart.cfg.style.bg.toLowerCase());
+
+function buildBgCombo() {
+  const list = $('bgList');
+  BG_PRESETS.forEach(p => {
+    const row = el('div', 'combo-row');
+    row.setAttribute('role', 'option');
+    const chip = el('span', 'chip');
+    chip.style.background = p.color;
+    row.appendChild(chip);
+    row.appendChild(el('span', 'combo-name', p.label));
+    row.appendChild(el('span', 'combo-hex', p.color));
+    row.addEventListener('click', () => chooseBg(p.color));
+    list.appendChild(row);
+  });
+
+  const custom = el('div', 'combo-row');
+  custom.setAttribute('role', 'option');
+  const cChip = el('span', 'chip');
+  cChip.id = 'bgCustomChip';
+  custom.appendChild(cChip);
+  custom.appendChild(el('span', 'combo-name', '自定义'));
+  const cHex = el('span', 'combo-hex', '—');
+  cHex.id = 'bgCustomHex';
+  custom.appendChild(cHex);
+  custom.addEventListener('click', () => {
+    openBg(false);
+    $('bgCustom').click();
+  });
+  list.appendChild(custom);
+
+  $('bgBtn').addEventListener('click', () => openBg(!bgOpen));
+  $('bgBtn').addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!bgOpen) openBg(true);
+      else moveBg(e.key === 'ArrowDown' ? 1 : -1);
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (bgOpen) commitBg();
+      else openBg(true);
+    } else if (e.key === 'Escape') {
+      openBg(false);
+      $('bgBtn').focus();
+    }
+  });
+  $('bgCustom').addEventListener('input', () => chooseBg($('bgCustom').value));
+  document.addEventListener('pointerdown', e => {
+    if (bgOpen && !$('bgCombo').contains(e.target)) openBg(false);
+  });
+}
+
+function openBg(open) {
+  bgOpen = open;
+  $('bgList').hidden = !open;
+  $('bgBtn').setAttribute('aria-expanded', String(open));
+  if (!open) return;
+  const i = bgIndex();
+  bgActive = i < 0 ? BG_PRESETS.length : i;
+  markBgActive();
+}
+
+function moveBg(step) {
+  const n = BG_PRESETS.length + 1;
+  bgActive = (bgActive + step + n) % n;
+  markBgActive();
+}
+
+function markBgActive() {
+  [...$('bgList').children].forEach((row, i) => row.classList.toggle('active', i === bgActive));
+  const cur = $('bgList').children[bgActive];
+  if (cur) cur.scrollIntoView({ block: 'nearest' });
+}
+
+function commitBg() {
+  if (bgActive >= BG_PRESETS.length) {
+    openBg(false);
+    $('bgCustom').click();
+    return;
   }
-  const pick = $('bgSwatches').querySelector('input[type=color]');
-  if (pick && pick.value.toLowerCase() !== bg) pick.value = app.chart.cfg.style.bg;
+  chooseBg(BG_PRESETS[bgActive].color);
+}
+
+function chooseBg(color) {
+  patchStyle('bg', color);
+  syncBgCombo();
+  openBg(false);
+  $('bgBtn').focus();
+}
+
+function syncBgCombo() {
+  const bg = app.chart.cfg.style.bg;
+  const hex = normalizeHex(bg) || '#121311';
+  $('bgChip').style.background = bg;
+  $('bgText').textContent = bgLabel(bg);
+  $('bgCustom').value = hex;
+  $('bgCustomChip').style.background = hex;
+  $('bgCustomHex').textContent = bgIndex() < 0 ? hex : '—';
+  [...$('bgList').children].forEach((row, i) => {
+    row.setAttribute('aria-selected', String(i < BG_PRESETS.length && BG_PRESETS[i].color.toLowerCase() === bg.toLowerCase()));
+  });
 }
 
 /* ---------- 控件构建 ---------- */
@@ -427,28 +525,7 @@ function buildControls() {
   fill($('fpsSel'), [[24, '24'], [30, '30'], [50, '50'], [60, '60']]);
   fill($('topNSel'), [5, 8, 10, 12, 15, 20, 25, 30].map(n => [n, '前 ' + n]));
 
-  const sw = $('bgSwatches');
-  for (const c of BG_PRESETS) {
-    const b = el('button', 'swatch');
-    b.type = 'button';
-    b.dataset.color = c;
-    b.dataset.ink = brightness(c) > 140 ? 'dark' : 'light';
-    b.style.background = c;
-    b.title = c;
-    b.addEventListener('click', () => {
-      patchStyle('bg', c);
-      markSwatch();
-    });
-    sw.appendChild(b);
-  }
-  const pick = el('input');
-  pick.type = 'color';
-  pick.title = '自定义背景色';
-  pick.addEventListener('input', () => {
-    patchStyle('bg', pick.value);
-    markSwatch();
-  });
-  sw.appendChild(pick);
+  buildBgCombo();
 
   const on = (id, fn) => $(id).addEventListener('change', e => fn(e.target));
   const text = (id, fn) => $(id).addEventListener('change', e => fn(e.target.value));
