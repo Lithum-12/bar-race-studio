@@ -1,0 +1,583 @@
+/* ============================================================
+ * ===== 视觉体系 =====
+ * ============================================================
+ * 取向：印刷统计表 + 仪器面板。页面是「装作品的框」，
+ * 画布才是主角，所以 chrome 用暖中性墨色、发丝分隔线、
+ * 2px 圆角、无阴影无渐变；强调色只给状态与当前值。
+ * ============================================================ */
+
+:root {
+  --paper: #E7E3D8;
+  --panel: #F0ECE3;
+  --sunken: #DAD5C8;
+  --ink: #1C1B19;
+  --ink-2: #58544B;
+  --ink-3: #8A8474;
+  --rule: #C7C1B1;
+  --rule-2: #A8A190;
+  --accent: #B4432A;
+  --accent-soft: #F0DDD5;
+  --ok: #3F6B57;
+  --radius: 2px;
+  --radius-lg: 3px;
+  --gap: 14px;
+  --sans: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", "Menlo", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-chrome="auto"] {
+    --paper: #1A1917;
+    --panel: #212020;
+    --sunken: #2B2A27;
+    --ink: #EDEAE1;
+    --ink-2: #A6A093;
+    --ink-3: #77726A;
+    --rule: #3A3835;
+    --rule-2: #4C4A45;
+    --accent: #D4603F;
+    --accent-soft: #3A2A24;
+    --ok: #7BA88F;
+  }
+}
+
+* { box-sizing: border-box }
+html, body { margin: 0; height: 100% }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+button, select, input, textarea { font: inherit; color: inherit }
+
+/* ---------- 骨架 ---------- */
+.app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  max-width: 1320px;
+  margin: 0 auto;
+  border-left: 1px solid var(--rule);
+  border-right: 1px solid var(--rule);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel);
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: .01em;
+}
+.brand em {
+  font: 400 11px/1 var(--mono);
+  color: var(--ink-3);
+  font-style: normal;
+}
+
+.spacer { flex: 1 1 auto }
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.field > b { font-weight: 500 }
+
+select, input[type="number"], input[type="text"], input[type="month"] {
+  background: var(--sunken);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  min-height: 32px;
+  outline: none;
+}
+select:hover, input:hover { border-color: var(--rule-2) }
+select:focus-visible, input:focus-visible, button:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  min-height: 32px;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius);
+  background: var(--panel);
+  cursor: pointer;
+}
+.btn:hover { background: var(--sunken) }
+.btn:active { transform: translateY(1px) }
+.btn.key {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #FBF8F2;
+}
+.btn.key:hover { filter: brightness(1.08) }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none }
+.btn svg { flex: none }
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--ink-2);
+  min-height: 32px;
+}
+
+/* 布尔开关：仪表拨杆。方形带 2px 圆角、发丝边框、方块滑块，
+   不用胶囊形和大圆点——那套是移动端默认审美，和这里的语言不一致。 */
+.toggle input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 18px;
+  margin: 0;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius);
+  background: var(--sunken);
+  cursor: pointer;
+  transition: background .14s, border-color .14s;
+}
+.toggle input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--ink-3);
+  transition: transform .14s ease-out, background .14s;
+}
+.toggle:hover input[type="checkbox"]:not(:checked) { border-color: var(--ink-3) }
+.toggle input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.toggle input[type="checkbox"]:checked::before {
+  transform: translateX(18px);
+  background: #FBF8F2;
+}
+.switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+
+/* ---------- 舞台 ---------- */
+.stage {
+  position: relative;
+  background: var(--sunken);
+  border-bottom: 1px solid var(--rule);
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0;
+}
+
+.rec {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 11px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--accent);
+  font: 500 12px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+body[data-busy] .rec { display: flex }
+.rec i {
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  animation: beat 1.1s steps(2, jump-none) infinite;
+}
+@keyframes beat { 0%, 100% { opacity: 1 } 50% { opacity: .18 } }
+
+/* ---------- 走带条 ---------- */
+.transport {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--panel);
+  flex-wrap: wrap;
+}
+
+.ctl {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius);
+  background: var(--panel);
+  cursor: pointer;
+}
+.ctl:hover { background: var(--sunken) }
+.ctl:active { transform: translateY(1px) }
+.ctl.key { background: var(--accent); border-color: var(--accent); color: #FBF8F2 }
+
+.track {
+  flex: 1 1 220px;
+  position: relative;
+  height: 34px;
+  cursor: pointer;
+  touch-action: none;
+  min-width: 180px;
+}
+.track .rail { position: absolute; left: 0; right: 0; top: 14px; height: 3px; background: var(--sunken); border: 1px solid var(--rule) }
+.track .fill { position: absolute; left: 0; top: 14px; height: 3px; background: var(--ink-2); width: 0 }
+.track .head {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  width: 3px;
+  height: 15px;
+  margin-left: -1.5px;
+  background: var(--accent);
+}
+.track .ticks i { position: absolute; top: 11px; width: 1px; height: 9px; background: var(--rule-2) }
+.track .ticks i.major { height: 13px; top: 9px; background: var(--ink-3) }
+.track .ticks span {
+  position: absolute;
+  top: 22px;
+  transform: translateX(-50%);
+  font: 400 10px/1 var(--mono);
+  color: var(--ink-3);
+}
+
+.readout {
+  flex: none;
+  min-width: 176px;
+  text-align: right;
+  font: 400 12px/1.4 var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.estimate {
+  flex: none;
+  padding: 6px 9px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper);
+  font: 400 12px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.estimate-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.estimate-row output {
+  font: 500 13px/1 var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.estimate-row em {
+  flex: 1;
+  min-width: 0;
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* ---------- 校验信息 ---------- */
+.issues { padding: 0 18px; background: var(--panel) }
+.issues:empty { display: none }
+.issue {
+  display: flex;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--rule);
+  font-size: 12.5px;
+}
+.issue code {
+  font: 400 12px/1.4 var(--mono);
+  color: var(--accent);
+  flex: none;
+  max-width: 46%;
+  overflow-wrap: anywhere;
+}
+.issue span { color: var(--ink-2) }
+.issue.warn code { color: #8A6D1F }
+
+/* ---------- 抽屉 ---------- */
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 27, 25, .34);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s;
+  z-index: 40;
+}
+body[data-drawer] .scrim { opacity: 1; pointer-events: auto }
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(468px, 94vw);
+  background: var(--panel);
+  border-left: 1px solid var(--rule-2);
+  transform: translateX(101%);
+  transition: transform .18s ease-out;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+}
+body[data-drawer] .drawer { transform: none }
+
+.drawer header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--rule);
+  font-weight: 700;
+}
+.drawer .body { overflow: auto; padding: 4px 18px 18px; flex: 1 }
+.drawer footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 12px 18px;
+  border-top: 1px solid var(--rule);
+}
+
+.group { padding-top: 18px }
+.group > h4 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+/* 分组标题拖一条发丝线，代替又一个盒子 */
+.group > h4::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px }
+.grid2 label {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.grid2 select, .grid2 input { width: 100%; min-height: 34px }
+
+/* 自绘下拉箭头。用伪元素而不是背景图：背景图里的颜色跟着不了明暗切换 */
+@supports selector(:has(*)) {
+  .drawer select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 28px;
+  }
+  .drawer label:has(select)::after {
+    content: "";
+    position: absolute;
+    right: 12px;
+    bottom: 15px;
+    width: 5px;
+    height: 5px;
+    border-right: 1.5px solid var(--ink-3);
+    border-bottom: 1.5px solid var(--ink-3);
+    transform: rotate(45deg);
+    pointer-events: none;
+  }
+}
+
+.swatches { display: flex; gap: 6px; align-items: center; flex-wrap: wrap }
+.swatch {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.swatch:hover { border-color: var(--ink-3) }
+.swatch[aria-pressed="true"] { border-color: var(--ink) }
+.swatch[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  width: 10px;
+  height: 5px;
+  border-left: 2px solid var(--chk);
+  border-bottom: 2px solid var(--chk);
+  transform: rotate(-45deg);
+}
+.swatch[data-ink="light"] { --chk: #F7F4EC }
+.swatch[data-ink="dark"] { --chk: #1C1B19 }
+input[type="color"] { width: 30px; height: 24px; padding: 1px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sunken); cursor: pointer }
+
+.hint { font-size: 12px; color: var(--ink-3); margin: 0 0 8px }
+
+/* ---------- 事件表 ---------- */
+.ev { display: flex; flex-direction: column; margin-bottom: 8px }
+.ev .none { color: var(--ink-3); font-size: 12.5px; padding: 7px 0; border-bottom: 1px solid var(--rule) }
+/* 事件用发丝线分行，不再一行套一个盒子 */
+.ev-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 12.5px;
+}
+.ev-row:hover { background: var(--sunken) }
+.ev-row time { flex: none; font: 400 12px/1.4 var(--mono); color: var(--accent) }
+.ev-row p { flex: 1; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.ev-row button {
+  flex: none;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: var(--radius);
+  font-size: 12px;
+}
+.ev-row button:hover { color: var(--accent); background: var(--accent-soft) }
+.ev-add { display: flex; gap: 6px; margin-top: 7px }
+.ev-add input[type="month"] { flex: none; width: 152px; color-scheme: light }
+.ev-add input[type="text"] { flex: 1; min-width: 0 }
+
+/* ---------- 成片面板 ---------- */
+.sheet {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(28, 27, 25, .44);
+  z-index: 50;
+  padding: 18px;
+}
+.sheet .box {
+  background: var(--panel);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  width: min(760px, 94vw);
+}
+.sheet h3 { margin: 0 0 12px; font-size: 15px }
+.sheet video { width: 100%; background: #000; border-radius: var(--radius); max-height: 50vh }
+.sheet .end { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px }
+
+/* ---------- 进度 ---------- */
+.work {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 400 12px/1 var(--mono);
+  color: var(--ink-2);
+}
+.work .meter { width: 132px; height: 3px; background: var(--sunken); border: 1px solid var(--rule) }
+.work .meter i { display: block; height: 100%; background: var(--accent); width: 0 }
+
+/* ---------- 抽屉里的说明 ---------- */
+.doc { margin: 0; font-size: 12px }
+.doc > div + div { margin-top: 11px }
+.doc dt { font-weight: 700; color: var(--ink); margin-bottom: 2px }
+.doc dd { margin: 0; line-height: 1.75; color: var(--ink-2) }
+.doc code {
+  font: 400 11.5px/1.5 var(--mono);
+  background: var(--sunken);
+  border: 1px solid var(--rule);
+  padding: 0 4px;
+  border-radius: var(--radius);
+}
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translate(-50%, 10px);
+  background: var(--ink);
+  color: var(--panel);
+  padding: 8px 15px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity .16s, transform .16s;
+  pointer-events: none;
+  z-index: 90;
+  max-width: 86vw;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0) }
+
+/* 导出时锁住走带与画布交互；顶栏保持可用，否则取消按钮点不到 */
+body[data-busy] .transport { opacity: .45; pointer-events: none }
+body[data-busy] .stage { cursor: progress }
+
+.drop { outline: 2px dashed var(--accent); outline-offset: -3px }
+
+.hidden { display: none !important }
+
+@media (max-width: 640px) {
+  .readout { display: none }
+  .grid2 { grid-template-columns: 1fr }
+  .transport { gap: 10px }
+  .app { border-left: 0; border-right: 0 }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec i { animation: none }
+  .drawer, .scrim, #toast { transition: none }
+}

@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>月度排名条形动画 · Bar Chart Race</title>
+<style>
+  :root{
+    --bg:#0B1220; --panel:#101A2E; --line:#17233D;
+    --text:#F1F5F9; --muted:#94A3B8; --accent:#4C6EF5;
+  }
+  *{ box-sizing:border-box }
+  html,body{ margin:0 }
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Noto Sans SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .stage{ max-width:1200px; margin:0 auto; padding:26px 20px 56px; }
+
+  .canvas-wrap{
+    position:relative; border-radius:16px; overflow:hidden;
+    border:1px solid var(--line); box-shadow:0 18px 50px rgba(0,0,0,.45);
+  }
+  canvas{ display:block; width:100%; height:auto; background:#0F172A; }
+
+  .rec-badge{
+    position:absolute; top:16px; left:16px; display:none; align-items:center; gap:9px;
+    background:rgba(4,10,24,.72); backdrop-filter:blur(4px);
+    padding:8px 15px; border-radius:999px; font-size:14px; color:#FCA5A5;
+    letter-spacing:.5px; z-index:5;
+  }
+  .rec-dot{ width:10px; height:10px; border-radius:50%; background:#EF4444; animation:pulse 1.1s ease-in-out infinite }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.25} }
+  body.exporting .rec-badge{ display:flex }
+  body.exporting .controls{ opacity:.45; pointer-events:none }
+
+  .controls{
+    margin-top:14px; background:var(--panel); border:1px solid var(--line);
+    border-radius:16px; padding:14px 16px;
+    display:flex; flex-direction:column; gap:12px; transition:opacity .2s;
+  }
+  .row{ display:flex; align-items:center; gap:14px; min-width:0 }
+
+  .icon-btn{
+    flex:none; width:46px; height:46px; border-radius:50%; border:0;
+    background:#E8EDF5; color:#0F172A; display:grid; place-items:center;
+    cursor:pointer; transition:transform .12s, background .15s;
+  }
+  .icon-btn:hover{ background:#fff }
+  .icon-btn:active{ transform:scale(.94) }
+  .icon-btn.ghost{ background:#1C2942; color:#DBE4F0 }
+  .icon-btn.ghost:hover{ background:#243354 }
+
+  .timeline{ flex:1; position:relative; height:40px; cursor:pointer; touch-action:none; min-width:160px }
+  .tl-track{ position:absolute; left:0; right:0; top:17px; height:4px; border-radius:2px; background:#22304C }
+  .tl-fill{ position:absolute; left:0; top:17px; height:4px; border-radius:2px; background:var(--accent); width:0 }
+  .tl-handle{
+    position:absolute; top:11px; left:0; width:16px; height:16px; border-radius:50%;
+    background:#F1F5F9; transform:translateX(-50%); box-shadow:0 1px 6px rgba(0,0,0,.5);
+  }
+  .tl-ticks i{ position:absolute; top:14px; width:2px; height:10px; background:#33415C; border-radius:1px }
+  .tl-ticks span{ position:absolute; top:27px; transform:translateX(-50%); font-size:12px; color:var(--muted) }
+  .readout{ flex:none; min-width:170px; text-align:right; color:var(--muted); font-size:14px; font-variant-numeric:tabular-nums }
+
+  .ctl{ display:flex; align-items:center; gap:8px; color:var(--muted); font-size:14px; flex:none }
+  select{
+    background:#18233B; color:var(--text); border:1px solid #243354; border-radius:10px;
+    padding:9px 12px; font-size:14px; outline:none; cursor:pointer;
+  }
+  select:hover{ border-color:#33456E }
+  .chk{ display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--muted); font-size:14px; user-select:none }
+  .chk input{ accent-color:var(--accent); width:16px; height:16px; cursor:pointer }
+  .spacer{ flex:1 }
+
+  .btn{
+    display:inline-flex; align-items:center; gap:8px; padding:11px 20px; border-radius:11px;
+    border:1px solid #243354; background:#18233B; color:var(--text);
+    font-size:14px; cursor:pointer; transition:background .15s; text-decoration:none;
+  }
+  .btn:hover{ background:#1F2C49 }
+  .btn.primary{ background:var(--accent); border-color:transparent; color:#fff }
+  .btn.primary:hover{ background:#5B7BF7 }
+
+  .overlay{
+    position:fixed; inset:0; background:rgba(3,8,20,.72);
+    display:grid; place-items:center; z-index:50; padding:20px;
+  }
+  .modal-card{
+    background:var(--panel); border:1px solid #243354; border-radius:16px;
+    padding:20px; width:min(700px,94vw); box-shadow:0 24px 70px rgba(0,0,0,.55);
+  }
+  .modal-card h3{ margin:0 0 14px; font-size:17px }
+  .modal-card video{ width:100%; border-radius:10px; background:#000; max-height:52vh }
+  .modal-actions{ display:flex; gap:10px; margin-top:14px; justify-content:flex-end }
+
+  .settings-card{
+    background:var(--panel); border:1px solid #243354; border-radius:16px;
+    padding:22px; width:min(780px,94vw); max-height:88vh; overflow:auto;
+    box-shadow:0 24px 70px rgba(0,0,0,.55);
+  }
+  .settings-card h3{ margin:0 0 16px; font-size:17px }
+  .settings-card h4{ margin:20px 0 10px; font-size:15px; color:#CBD5E1 }
+  .set-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px 18px }
+  .set-item{ display:flex; flex-direction:column; gap:7px; font-size:13px; color:var(--muted) }
+  .set-item select{ width:100% }
+  .bg-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+  .swatch{
+    width:26px; height:26px; border-radius:8px; border:2px solid transparent; cursor:pointer;
+    box-shadow:inset 0 0 0 1px rgba(127,127,127,.35); padding:0;
+  }
+  .swatch.active{ border-color:var(--accent); box-shadow:0 0 0 2px rgba(76,110,245,.35) }
+  #bgPick, .bg-row input[type=color]{ width:36px; height:28px; padding:2px; border:1px solid #243354; border-radius:8px; background:#18233B; cursor:pointer }
+  .ev-section{ border-top:1px solid #1D2A45; margin-top:20px; padding-top:2px }
+  .ev-hint{ font-size:12px; color:var(--muted); font-weight:400; margin-left:6px }
+  #eventList{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px }
+  .ev-row{
+    display:flex; align-items:center; gap:10px; background:#141F38; border:1px solid #1D2A45;
+    border-radius:10px; padding:8px 12px; font-size:13.5px;
+  }
+  .ev-m{ color:#7C93FF; font-variant-numeric:tabular-nums; flex:none }
+  .ev-t{ color:#DBE4F0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  .ev-del{ flex:none; background:none; border:none; color:#8A93A1; cursor:pointer; font-size:12.5px; padding:4px 8px; border-radius:6px }
+  .ev-del:hover{ color:#FCA5A5; background:rgba(252,165,165,.08) }
+  .ev-empty{ color:var(--muted); font-size:13px; padding:4px 2px }
+  .event-add{ display:flex; gap:8px }
+  .event-add input[type=month]{
+    background:#18233B; border:1px solid #243354; border-radius:10px; color:var(--text);
+    padding:9px 10px; font-size:13.5px; color-scheme:dark; flex:none; width:165px; outline:none;
+  }
+  .event-add input[type=text]{
+    flex:1; min-width:0; background:#18233B; border:1px solid #243354; border-radius:10px;
+    color:var(--text); padding:9px 12px; font-size:13.5px; outline:none;
+  }
+  .event-add input:focus{ border-color:#3B5BD1 }
+  .settings-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:20px }
+
+  .help{
+    margin-top:18px; background:var(--panel); border:1px solid var(--line);
+    border-radius:14px; padding:6px 18px; color:var(--muted); font-size:14px; line-height:1.9;
+  }
+  .help summary{ cursor:pointer; color:#CBD5E1; padding:10px 0; outline:none }
+  .help code{ background:#18233B; padding:2px 7px; border-radius:6px; font-size:13px; color:#93B4FF }
+  .help b{ color:#E2E8F0 }
+
+  #toast{
+    position:fixed; left:50%; bottom:30px; transform:translateX(-50%) translateY(16px);
+    opacity:0; transition:.25s; background:#E8EDF5; color:#0F172A;
+    padding:11px 20px; border-radius:11px; font-size:14px; pointer-events:none;
+    z-index:80; max-width:88vw;
+  }
+  #toast.show{ opacity:1; transform:translateX(-50%) }
+  .hidden{ display:none!important }
+
+  @media (max-width:720px){
+    .readout{ display:none }
+    .row{ flex-wrap:wrap }
+    .set-grid{ grid-template-columns:1fr }
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="canvas-wrap">
+    <canvas id="chart" width="1920" height="1080"></canvas>
+    <div class="rec-badge"><span class="rec-dot"></span><span>REC</span><span id="recPct">0%</span></div>
+  </div>
+
+  <div class="controls">
+    <div class="row">
+      <button class="icon-btn" id="playBtn" title="播放 / 暂停（空格）">
+        <svg id="icPlay" viewBox="0 0 24 24" width="20" height="20"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+        <svg id="icPause" viewBox="0 0 24 24" width="20" height="20" style="display:none"><path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor"/></svg>
+      </button>
+      <button class="icon-btn ghost" id="restartBtn" title="重新播放">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z" fill="currentColor"/></svg>
+      </button>
+      <div class="timeline" id="timeline">
+        <div class="tl-track"></div>
+        <div class="tl-fill" id="tlFill"></div>
+        <div class="tl-ticks" id="tlTicks"></div>
+        <div class="tl-handle" id="tlHandle"></div>
+      </div>
+      <div class="readout" id="readout">—</div>
+    </div>
+    <div class="row">
+      <label class="ctl">速度
+        <select id="speedSel">
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+        </select>
+      </label>
+      <label class="ctl">显示
+        <select id="topNSel">
+          <option value="5">前 5 名</option>
+          <option value="8">前 8 名</option>
+          <option value="10" selected>前 10 名</option>
+          <option value="12">前 12 名</option>
+        </select>
+      </label>
+      <label class="chk"><input type="checkbox" id="loopChk" /><span>循环播放</span></label>
+      <div class="spacer"></div>
+      <button class="btn" id="settingsBtn">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.65 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.23.4.32.61.22l2.39-.96c.49.38 1.03.7 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54a7.03 7.03 0 0 0 1.62-.94l2.39.96c.22.1.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" fill="currentColor"/></svg>
+        显示设置
+      </button>
+      <button class="btn primary" id="exportBtn">
+        <svg viewBox="0 0 24 24" width="17" height="17"><path d="M12 3v10l4-4 1.4 1.4L12 16.8 6.6 10.4 8 9l4 4V3h0zM5 19h14v2H5z" fill="currentColor"/></svg>
+        导出视频
+      </button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="exportPanel">
+    <div class="modal-card">
+      <h3>视频已生成</h3>
+      <video id="exportVideo" controls playsinline></video>
+      <div class="modal-actions">
+        <button class="btn" id="closeExport">关闭</button>
+        <a class="btn primary" id="downloadLink" download>下载视频文件</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="settingsPanel">
+    <div class="settings-card">
+      <h3>显示设置</h3>
+      <div class="set-grid">
+        <label class="set-item">字体
+          <select id="fontSel">
+            <option value="sans">黑体（默认）</option>
+            <option value="serif">宋体 · 衬线</option>
+            <option value="kai">楷体</option>
+            <option value="mono">等宽</option>
+          </select>
+        </label>
+        <label class="set-item">字号
+          <select id="fontScaleSel">
+            <option value="0.85">小</option>
+            <option value="1" selected>标准</option>
+            <option value="1.18">大</option>
+          </select>
+        </label>
+        <label class="set-item">名称显示位置
+          <select id="namePosSel">
+            <option value="outL">条形外部左侧</option>
+            <option value="inL" selected>条形内部左侧</option>
+            <option value="inR">条形内部右侧</option>
+            <option value="outR">条形外部右侧</option>
+          </select>
+        </label>
+        <label class="set-item">排名显示位置
+          <select id="rankPosSel">
+            <option value="outL" selected>条形外部左侧</option>
+            <option value="inL">条形内部左侧</option>
+            <option value="inR">条形内部右侧</option>
+            <option value="outR">条形外部右侧</option>
+          </select>
+        </label>
+        <label class="set-item">销量数值位置
+          <select id="valuePosSel">
+            <option value="auto" selected>自动（条内放不下外移）</option>
+            <option value="outL">条形外部左侧</option>
+            <option value="inL">条形内部左侧</option>
+            <option value="inR">条形内部右侧</option>
+            <option value="outR">条形外部右侧</option>
+          </select>
+        </label>
+        <label class="set-item">品牌图标位置（SVG）
+          <select id="iconPosSel">
+            <option value="outL" selected>条形外部左侧</option>
+            <option value="inL">条形内部左侧</option>
+            <option value="inR">条形内部右侧</option>
+            <option value="outR">条形外部右侧</option>
+            <option value="none">不显示</option>
+          </select>
+        </label>
+        <label class="set-item">条形形状
+          <select id="barShapeSel">
+            <option value="none">直角（无圆角）</option>
+            <option value="small" selected>小圆角</option>
+            <option value="large">大圆角</option>
+            <option value="pill">胶囊形</option>
+          </select>
+        </label>
+        <label class="set-item">条形配色方案
+          <select id="paletteSel">
+            <option value="jewel">宝石色 · 默认</option>
+            <option value="ocean">深海蓝紫</option>
+            <option value="vivid">明亮活力</option>
+            <option value="morandi">莫兰迪 · 低饱和</option>
+          </select>
+        </label>
+        <div class="set-item">背景颜色
+          <div class="bg-row" id="bgSwatches"></div>
+        </div>
+      </div>
+
+      <div class="ev-section">
+        <h4>大事件<span class="ev-hint">播放到达指定月份时，在画布右下角大字显示（会一起录进视频）</span></h4>
+        <div id="eventList"></div>
+        <div class="event-add">
+          <input type="month" id="evMonth" />
+          <input type="text" id="evText" maxlength="60" placeholder="事件描述，如：新品发布、政策落地" />
+          <button class="btn" id="evAdd">添加事件</button>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button class="btn" id="resetSettings">恢复默认</button>
+        <button class="btn primary" id="closeSettings">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <details class="help">
+    <summary>使用说明 · 如何替换成自己的数据 / 大事件 / 导出视频</summary>
+    <div>
+      <p><b>替换数据：</b>用任意文本编辑器打开本文件，在底部找到带醒目注释的 <code>CONFIG</code> / <code>DATA</code> / <code>EVENTS</code> 区块。<code>startMonth</code> 填起始月份（格式 <code>YYYY-MM</code>）；每个条目的 <code>values</code> 按月依次填一个数值，各条目长度保持一致；填 <code>null</code> 表示该月不在榜上——开头一段 <code>null</code> = 该品牌中途加入，结尾一段 <code>null</code> = 中途退出；<code>color</code> 可省略，将按所选配色方案自动配色。</p>
+      <p><b>大事件：</b>可在「显示设置 → 大事件」中添加（精确到月），也可以直接编辑代码里的 <code>EVENTS</code> 数组。播放到达该月时，右下角会大字弹出提示，并随视频一起录制。</p>
+      <p><b>显示设置：</b>面板中的字体、字号、名称/排名/数值/品牌图标显示位置、条形形状（直角/小圆角/大圆角/胶囊）、背景颜色、配色方案会即时生效并自动保存在本浏览器中。品牌图标支持任意 SVG：在 <code>DATA</code> 条目中加 <code>icon: '&lt;svg ...&gt;...&lt;/svg&gt;'</code> 即可，省略则自动生成品牌色徽标。</p>
+      <p><b>导出视频：</b>点击「导出视频」后会自动从头录制，动画播放完毕自动生成视频（Chrome / Edge 为 .webm，Safari 可能为 .mp4）。导出为实时录制，导出时长 = 动画时长 ÷ 倍速，录制期间请保持本页面处于前台。个别剪辑软件可能读不准 webm 时长，用 ffmpeg 一条命令转 MP4 即可：<code>ffmpeg -i 输入.webm -c:v libx264 -pix_fmt yuv420p 输出.mp4</code>（仅转封装可加 <code>-c copy</code>）。</p>
+      <p><b>操作：</b>空格键 = 播放/暂停；点击或拖动时间轴可跳转到任意月份；时间轴上的刻度为每年 1 月。</p>
+      <p>当前数据为<b>虚构示例</b>（品牌与数值均为演示用途），仅用于展示效果。</p>
+    </div>
+  </details>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* =============================================================
+ * ==================  数据配置区（在这里替换）  ==================
+ * =============================================================
+ * CONFIG.title / subtitle : 画布左上角标题与副标题
+ * CONFIG.unit             : 数值单位（如 万辆、万元、人）
+ * CONFIG.startMonth       : 起始月份，格式 YYYY-MM
+ * CONFIG.decimals         : 数值显示小数位
+ *
+ * DATA：每个条目一个对象
+ *   name   : 名称
+ *   color  : 可选，固定条形颜色（省略则按配色方案自动分配）
+ *   icon   : 可选，SVG 图标字符串，如 icon: '<svg xmlns="..." viewBox="0 0 48 48">...</svg>'
+ *            （省略则自动生成品牌色圆牌徽标；显示位置在「显示设置 → 品牌图标位置」中选择）
+ *   values : 按月依次排列的数值，各条目长度需一致；
+ *            填 null 表示该月不在榜上：
+ *              开头一段 null = 中途加入（条形将滑入登场）
+ *              结尾一段 null = 中途退出（条形将淡出离场）
+ *
+ * EVENTS：大事件（精确到月），播放到达该月时右下角大字显示；
+ *         也可在页面「显示设置」面板中增删，二者会自动合并。
+ * ============================================================= */
+const CONFIG = {
+  title: '虚拟品牌月度销量排行',
+  subtitle: '示例数据 · 时间精确到月 · 可替换为真实数据',
+  unit: '万辆',
+  startMonth: '2024-01',
+  decimals: 1,
+};
+
+const DATA = [
+    { name: '云帆汽车', values: [8.6, 9.1, 9.2, 9.8, 10.1, 10.9, 12.2, 13.0, 14.2, 16.7, 18.7, 21.3, 24.9, 29.0, 35.1, 40.4, 46.3, 53.2, 57.7, 65.4, 69.2, 75.4, 78.7, 80.4, 87.1, 85.7, 91.2, 91.1, 90.4, 90.9, 93.9, 93.5, 96.5, 95.0, 96.4] },
+    { name: '极光汽车', values: [79.1, 77.4, 74.8, 76.6, 74.6, 75.0, 72.7, 71.1, 69.7, 67.4, 65.5, 63.4, 58.9, 58.3, 55.5, 51.8, 48.5, 47.1, 43.6, 41.7, 39.7, 38.1, 37.8, 36.4, 34.8, 34.6, 33.7, 32.1, 32.1, 31.5, 31.9, 31.2, 30.3, 30.5, 29.9] },
+    { name: '星辰汽车', values: [52.3, 53.8, 54.0, 58.1, 59.0, 58.9, 60.6, 60.2, 62.0, 60.3, 61.8, 61.9, 63.0, 63.2, 64.2, 64.4, 62.0, 63.2, 64.1, 63.4, 63.4, 65.0, 62.7, 64.2, 65.4, 62.7, 65.3, 64.3, 64.5, 63.3, 61.5, 61.1, 61.4, 62.1, 60.2] },
+    { name: '磐石汽车', values: [null, null, null, null, null, null, null, null, null, null, null, null, 28.6, 28.7, 28.6, 28.8, 28.5, 29.9, 30.6, 31.0, 32.0, 33.1, 34.3, 36.6, 39.8, 43.4, 45.8, 48.9, 50.9, 54.9, 58.1, 57.4, 60.6, 60.2, 61.5] },
+    { name: '蓝鲸汽车', values: [18.2, 19.2, 20.0, 21.1, 22.4, 23.7, 24.1, 26.0, 27.5, 28.7, 29.1, 30.0, 31.4, 32.2, 34.2, 34.4, 35.6, 37.6, 37.4, 38.9, 39.6, 41.3, 43.1, 44.3, 44.0, 46.3, 47.7, 49.3, 48.5, 49.7, 51.9, 51.8, 52.9, 55.7, 57.0] },
+    { name: '风行汽车', values: [34.2, 36.8, 36.3, 34.2, 30.2, 24.8, 19.9, 16.8, 17.5, 20.3, 26.2, 31.7, 37.4, 40.8, 40.5, 37.0, 32.4, 27.3, 23.2, 20.2, 20.0, 23.1, 29.5, 34.9, 40.8, 43.2, 43.2, 40.1, 36.1, 30.6, 25.6, 22.8, 24.0, 26.2, 32.3] },
+    { name: '追光汽车', values: [24.3, 23.7, 27.7, 29.8, 28.9, 30.1, 32.1, 31.0, 33.7, 30.4, 33.8, 37.9, 39.5, 43.2, 43.3, 45.3, 47.0, 45.7, 47.4, 48.8, 47.7, 47.5, 48.5, 45.9, 47.2, 48.6, 47.2, 47.0, 46.1, 43.4, 42.0, 42.4, 41.9, 37.5, 38.4] },
+    { name: '天穹汽车', values: [24.0, 24.6, 24.7, 26.4, 25.5, 26.6, 25.7, 26.0, 25.2, 24.0, 23.4, 24.1, 23.2, 23.5, 23.9, 24.7, 25.0, 25.6, 26.9, 27.2, 27.6, 27.9, 27.2, 27.1, 26.3, 26.7, 25.3, 26.0, 25.2, 25.6, 26.1, 25.9, 26.3, 27.2, 28.4] },
+    { name: '赤焰汽车', values: [10.0, 9.9, 10.1, 9.9, 10.3, 10.7, 11.7, 13.5, 17.1, 23.9, 33.7, 42.9, 56.0, 63.2, 67.0, 63.1, 55.4, 44.0, 32.2, 24.0, 17.3, 13.8, 11.7, 10.5, 10.4, 10.0, 10.1, 10.2, 9.9, 9.9, 10.1, 9.8, 9.9, 10.0, 10.0] },
+    { name: '灵犀汽车', values: [16.3, 15.7, 15.6, 15.0, 15.1, 14.7, 14.3, 14.0, 13.5, 12.9, 12.6, 12.5, 11.9, 12.0, 11.6, 11.4, 10.7, 10.3, 10.1, 9.8, 9.7, 9.3, 9.1, 8.6, 8.4, 7.9, 7.8, 7.5, 6.9, null, null, null, null, null, null] },
+    { name: '沧海汽车', values: [3.1, 3.9, 5.0, 6.0, 6.9, 7.5, 8.1, 8.8, 9.6, 9.9, 10.5, 11.1, 11.4, 12.3, 12.3, 13.1, 13.4, 13.8, 14.1, 13.9, 14.4, 14.4, 15.0, 15.4, 15.0, 15.7, 15.5, 16.0, 15.7, 16.0, 15.9, null, null, null, null] },
+    { name: '曜石汽车', values: [2.0, 2.0, 2.1, 2.2, 2.4, 2.5, 2.7, 3.0, 3.3, 3.7, 4.2, 4.6, 4.9, 5.4, 6.1, 6.8, 7.3, 8.2, 8.6, 9.6, 10.6, 11.5, 12.1, 13.1, 14.2, 14.9, 16.1, 17.7, 18.0, 19.5, 20.6, 22.4, 24.0, 24.7, 26.0] },
+];
+
+const EVENTS = [
+  { month: '2025-01', text: '新品牌「磐石」入场，竞争加剧' },
+  { month: '2025-03', text: '补贴新政落地，赤焰销量冲上 67 万辆' },
+  { month: '2026-01', text: '磐石新车型上市，开始放量增长' },
+  { month: '2026-07', text: '云帆单月突破 90 万辆，登顶榜首' },
+];
+/* ====================  数据配置区结束  ==================== */
+
+/* ---------- 画布与常量 ---------- */
+const canvas = document.getElementById('chart');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const L = {
+  titleX: 64, titleY: 88, subY: 128, dateX: W - 64, dateBase: 112,
+  chartTop: 180, chartBottom: 935, axisLabelY: 20,
+  barX0: 230, plotRight: 1470,
+};
+
+const FONTS = {
+  sans: '"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Noto Sans SC",system-ui,"Segoe UI",sans-serif',
+  serif: '"Songti SC","Noto Serif SC","STSong","SimSun",serif',
+  kai: '"Kaiti SC","STKaiti","KaiTi",serif',
+  mono: 'ui-monospace,"SF Mono","Cascadia Mono","PingFang SC","Microsoft YaHei",monospace',
+};
+
+const PALETTES = {
+  jewel: { label: '宝石色 · 默认', colors: [
+    '#3B6FE0', '#0E9F8C', '#D9542F', '#7A5AF8', '#D6406E', '#2FA35C',
+    '#C08A1E', '#5C7A99', '#3FA7D6', '#A2653A', '#B23A48', '#64748B',
+    '#8B7AC4', '#4E8D6E'] },
+  ocean: { label: '深海蓝紫', colors: [
+    '#2B5FAD', '#3E8ED0', '#6C63D2', '#8A4FBF', '#279A93', '#3F6C9E',
+    '#5B8DB8', '#7A6FC4', '#2E7DA6', '#4C77B2', '#6E5FB8', '#52708F',
+    '#8B7AC4', '#3D8A80'] },
+  vivid: { label: '明亮活力', colors: [
+    '#E0533F', '#E8940F', '#2A9D8F', '#D9A404', '#9B5DE5', '#0090C9',
+    '#E24C8B', '#0FA37F', '#C4326E', '#5B7CFA', '#B5651D', '#4C9F70',
+    '#C24914', '#3E7CB1'] },
+  morandi: { label: '莫兰迪 · 低饱和', colors: [
+    '#A8958E', '#9AA5A0', '#B3A6C9', '#C2A878', '#8FA3AD', '#C4A3A3',
+    '#A3B18A', '#B0A4A0', '#8E9AAF', '#BCA37F', '#93A8AC', '#A79E8E',
+    '#AFB9C2', '#9C8F9F'] },
+};
+
+/* ---------- 设置（本地持久化） ---------- */
+const SETTINGS_KEY = 'bcr-settings-v2';
+const SETTINGS_DEFAULTS = {
+  font: 'sans', fontScale: 1,
+  namePos: 'inL', rankPos: 'outL', valuePos: 'auto',
+  iconPos: 'outL', barShape: 'small',
+  palette: 'jewel', bg: '#0F172A',
+};
+const POS_KEYS = ['outL', 'inL', 'inR', 'outR'];
+
+function loadSettings() {
+  const s = {
+    font: SETTINGS_DEFAULTS.font, fontScale: SETTINGS_DEFAULTS.fontScale,
+    namePos: SETTINGS_DEFAULTS.namePos, rankPos: SETTINGS_DEFAULTS.rankPos,
+    valuePos: SETTINGS_DEFAULTS.valuePos, iconPos: SETTINGS_DEFAULTS.iconPos,
+    barShape: SETTINGS_DEFAULTS.barShape,
+    palette: SETTINGS_DEFAULTS.palette, bg: SETTINGS_DEFAULTS.bg,
+    events: EVENTS.slice(),
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+    if (saved && typeof saved === 'object') {
+      if (FONTS[saved.font]) s.font = saved.font;
+      if ([0.85, 1, 1.18].includes(saved.fontScale)) s.fontScale = saved.fontScale;
+      if (POS_KEYS.includes(saved.namePos)) s.namePos = saved.namePos;
+      if (POS_KEYS.includes(saved.rankPos)) s.rankPos = saved.rankPos;
+      if (['auto', ...POS_KEYS].includes(saved.valuePos)) s.valuePos = saved.valuePos;
+      if (['none', ...POS_KEYS].includes(saved.iconPos)) s.iconPos = saved.iconPos;
+      if (['none', 'small', 'large', 'pill'].includes(saved.barShape)) s.barShape = saved.barShape;
+      if (PALETTES[saved.palette]) s.palette = saved.palette;
+      if (typeof saved.bg === 'string' && /^#[0-9a-fA-F]{6}$/.test(saved.bg)) s.bg = saved.bg;
+      if (Array.isArray(saved.events)) {
+        s.events = saved.events.filter(ev => ev && typeof ev.month === 'string' && typeof ev.text === 'string');
+      }
+    }
+  } catch (e) { /* 忽略损坏的本地数据 */ }
+  return s;
+}
+let settings = loadSettings();
+function saveSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* 忽略 */ }
+}
+
+/* ---------- SVG 图标 ---------- */
+/* 内置示例徽标：品牌色圆牌 + 白色图形。真实使用时在 DATA 中写 icon: '<svg ...></svg>' */
+const GLYPHS = [
+  '<path d="M24 6C31 13 34 22 33 30H24Z"/><path d="M13 34H35L30 41H18Z"/>',
+  '<path d="M8 30C13 20 22 15 40 14 36 20 34 26 33 31 24 35 14 35 8 30Z"/><path d="M12 38H32" stroke="#FFFFFF" stroke-width="3" fill="none" stroke-linecap="round"/>',
+  '<path d="M24 5L27.5 20.5L43 24L27.5 27.5L24 43L20.5 27.5L5 24L20.5 20.5Z"/>',
+  '<path d="M24 7L39 15V33L24 41L9 33V15Z"/><path d="M24 7V41M9 15L39 33M9 33L39 15" stroke="rgba(20,33,58,.35)" stroke-width="2.5" fill="none"/>',
+  '<path d="M9 25C15 17 27 16 34 21L41 16L39 25L41 33L34 28C27 33 15 33 9 25Z"/><circle cx="16.5" cy="23" r="1.8" fill="#14213A"/>',
+  '<path d="M9 17H27A4.5 4.5 0 1 0 22.5 9M7 25H33A4.5 4.5 0 1 1 28.5 33M11 33H19" stroke="#FFFFFF" stroke-width="3.5" fill="none" stroke-linecap="round"/>',
+  '<circle cx="24" cy="24" r="7"/><path d="M24 6V12M24 36V42M6 24H12M36 24H42M11 11L15.5 15.5M32.5 32.5L37 37M37 11L32.5 15.5M15.5 32.5L11 37" stroke="#FFFFFF" stroke-width="3.5" fill="none" stroke-linecap="round"/>',
+  '<path d="M10 31A14 14 0 0 1 38 31Z"/><path d="M7 36.5H41" stroke="#FFFFFF" stroke-width="3.5" fill="none" stroke-linecap="round"/>',
+  '<path d="M24 5C30 13 35 19 35 26A11 11 0 0 1 13 26C13 19 18 13 24 5Z"/><path d="M24 18C27 22 29 24 29 28A5 5 0 0 1 19 28C19 24 21 22 24 18Z" fill="#14213A" opacity=".35"/>',
+  '<path d="M24 10A14 14 0 1 1 10 24A10.5 10.5 0 1 0 24 13.5A7 7 0 1 1 17 20.5" stroke="#FFFFFF" stroke-width="3.5" fill="none" stroke-linecap="round"/>',
+  '<path d="M8 20C12 16 16 16 20 20S28 24 32 20 38 16 40 18M8 29C12 25 16 25 20 29S28 33 32 29 38 25 40 27" stroke="#FFFFFF" stroke-width="3.5" fill="none" stroke-linecap="round"/>',
+  '<path d="M24 6L38 19L24 42L10 19Z"/><path d="M10 19H38M24 6L18 19L24 42L30 19Z" stroke="rgba(20,33,58,.4)" stroke-width="2" fill="none"/>',
+];
+function emblemSVG(color, glyph) {
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">'
+    + '<circle cx="24" cy="24" r="21.5" fill="' + color + '" stroke="#FFFFFF" stroke-width="3"/>'
+    + '<g fill="#FFFFFF">' + glyph + '</g></svg>';
+}
+function loadIcon(it) {
+  if (!it.iconRaw) return;
+  const img = new Image();
+  img.onload = () => { it.iconImg = img; };
+  let src = String(it.iconRaw).trim();
+  if (/^<svg/i.test(src)) src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(src);
+  img.src = src;
+}
+
+/* ---------- 数据整理 ---------- */
+const items = DATA.map((d, i) => ({
+  name: String(d.name),
+  pinnedColor: d.color || null,
+  color: d.color || null,
+  emblem: !d.icon,                       /* 未指定 icon 时自动生成品牌徽标 */
+  iconRaw: d.icon || null,
+  iconImg: null,
+  values: d.values.map(v => (v == null ? null : Number(v))),
+  animY: 0, alpha: 0, init: false, rank: 0, v: 0, exiting: false,
+}));
+const maxLen = Math.max(...items.map(it => it.values.length));
+items.forEach(it => {
+  while (it.values.length < maxLen) {
+    it.values.push(it.values.length ? it.values[it.values.length - 1] : 0);
+  }
+});
+function applyPalette() {
+  const P = PALETTES[settings.palette].colors;
+  items.forEach((it, i) => {
+    if (it.pinnedColor) return;
+    it.color = P[i % P.length];
+    if (it.emblem) {                     /* 徽标跟随配色方案重新着色 */
+      it.iconRaw = emblemSVG(it.color, GLYPHS[i % GLYPHS.length]);
+      it.iconImg = null;
+      loadIcon(it);
+    }
+  });
+}
+applyPalette();
+items.forEach(it => { if (!it.iconRaw) loadIcon(it); });
+
+const TOTAL = maxLen - 1; // 总间隔数（月）
+
+function monthAt(i) {
+  const parts = CONFIG.startMonth.split('-').map(Number);
+  const d = new Date(parts[0], parts[1] - 1 + i, 1);
+  return { y: d.getFullYear(), m: d.getMonth() + 1 };
+}
+function monthLabel(i) {
+  const o = monthAt(i);
+  return o.y + '年' + o.m + '月';
+}
+function monthKey(i) {
+  const o = monthAt(i);
+  return o.y + '-' + String(o.m).padStart(2, '0');
+}
+function monthIndex(key) {
+  const p = key.split('-').map(Number);
+  const s = CONFIG.startMonth.split('-').map(Number);
+  return (p[0] - s[0]) * 12 + (p[1] - s[1]);
+}
+
+/* ---------- 状态 ---------- */
+const state = {
+  t: 0, playing: false, speed: 1, topN: 10, loop: false,
+  exporting: false, axisMax: 0, dateKey: -1, datePop: 0,
+};
+const monthsPerSec = () => 1.2 * state.speed;
+const clampIdx = i => Math.max(0, Math.min(TOTAL, i));
+
+/* 取某时刻的插值；null 表示不在场；exiting 标记“正在退出的最后一个月” */
+function valAt(it, t) {
+  const i = clampIdx(Math.floor(t));
+  const j = Math.min(TOTAL, i + 1);
+  const f = Math.max(0, Math.min(1, t - i));
+  const a = it.values[i], b = it.values[j];
+  it.exiting = (a != null && b == null);
+  if (a == null && b == null) return null;
+  if (a == null) return b;
+  if (b == null) return a;
+  return a + (b - a) * f;
+}
+
+/* ---------- 数字与刻度 ---------- */
+function fmt(n) {
+  return n.toLocaleString('zh-CN', {
+    minimumFractionDigits: CONFIG.decimals,
+    maximumFractionDigits: CONFIG.decimals,
+  });
+}
+function fmtTick(n) {
+  return Number.isInteger(n) ? n.toLocaleString('zh-CN') : String(+n.toFixed(2));
+}
+function niceCeil(x) {
+  if (x <= 0) return 1;
+  const exp = Math.pow(10, Math.floor(Math.log10(x)));
+  const mult = [1, 1.05, 1.1, 1.2, 1.25, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+  for (const m of mult) if (m * exp >= x) return m * exp;
+  return 10 * exp;
+}
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); return; }
+  r = Math.min(r, w / 2, h / 2);
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+const easeOut = x => 1 - (1 - x) * (1 - x);
+
+/* ---------- 颜色工具 ---------- */
+function hex2rgb(h) {
+  const n = parseInt(h.slice(1), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+function luminance(h) {
+  const c = hex2rgb(h);
+  return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+}
+/* 条形内部文字：浅色条用深字，深色条用白字（WCAG 相对亮度） */
+function textOn(hex) {
+  const c = hex2rgb(hex);
+  const ch = [c.r, c.g, c.b].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+  const Y = 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+  return Y > 0.32 ? '#14213A' : '#FFFFFF';
+}
+/* 随背景色切换整套画布配色（亮背景自动换成深色文字） */
+function bgTheme() {
+  const light = luminance(settings.bg) > 140;
+  return light ? {
+    text: '#1E293B', muted: '#5B6472', faint: '#7C8694',
+    grid: 'rgba(15,23,42,.16)', grid0: 'rgba(15,23,42,.42)',
+    nameOut: '#334155', valOut: '#0F172A',
+    cardBg: 'rgba(255,255,255,.92)', cardBorder: 'rgba(15,23,42,.14)',
+    cardText: '#0F172A', cardSub: '#5B6472',
+  } : {
+    text: '#F1F5F9', muted: '#94A3B8', faint: '#64748B',
+    grid: 'rgba(51,65,85,.55)', grid0: 'rgba(71,85,105,.9)',
+    nameOut: '#E2E8F0', valOut: '#F1F5F9',
+    cardBg: 'rgba(8,14,30,.88)', cardBorder: 'rgba(148,163,184,.28)',
+    cardText: '#F1F5F9', cardSub: '#94A3B8',
+  };
+}
+
+/* 字体助手：统一应用所选字体与字号缩放 */
+const fs = () => settings.fontScale;
+function F(weight, px) {
+  return weight + ' ' + Math.round(px * fs()) + 'px ' + (FONTS[settings.font] || FONTS.sans);
+}
+
+/* ---------- 重置动画 ---------- */
+function visOf(it) {
+  return it.v != null && !it.exiting && it.rank < state.topN;
+}
+function resetAnim(snap) {
+  items.forEach(it => { it.init = false; });
+  state.axisMax = 0; state.dateKey = -1; state.datePop = 0;
+  if (snap) {
+    items.forEach(it => { it.v = valAt(it, 0); });
+    const act = items.filter(it => it.v != null).sort((a, b) => b.v - a.v);
+    act.forEach((it, ri) => { it.rank = ri; });
+    items.forEach(it => { if (it.v == null) it.rank = state.topN + 5; });
+    const slotH = (L.chartBottom - L.chartTop) / state.topN;
+    items.forEach(it => {
+      const vis = visOf(it);
+      it.animY = L.chartTop + (vis ? it.rank : state.topN) * slotH + slotH / 2;
+      it.alpha = vis ? 1 : 0;
+      it.init = true;
+    });
+    const vmax = Math.max(1e-9, ...items.filter(it => it.v != null).map(it => it.v));
+    state.axisMax = niceCeil(vmax * 1.06);
+  }
+}
+
+/* ---------- 大事件（右下角） ---------- */
+function currentEvent() {
+  let bestIdx = -1;
+  for (const ev of settings.events) {
+    const idx = monthIndex(ev.month);
+    if (idx < 0 || idx > TOTAL) continue;
+    /* 提前半个月开始淡入：保证动画钳制在最后一个月时，末尾事件也能完整显示 */
+    if (state.t >= idx - 0.5 && state.t < idx + 3 && idx > bestIdx) bestIdx = idx;
+  }
+  if (bestIdx < 0) return null;
+  const texts = settings.events
+    .filter(ev => monthIndex(ev.month) === bestIdx)
+    .map(ev => String(ev.text));
+  return { idx: bestIdx, text: texts.join('；') };
+}
+function wrapText(text, maxW, font) {
+  ctx.font = font;
+  const lines = [];
+  let cur = '';
+  for (const ch of String(text)) {
+    if (ctx.measureText(cur + ch).width > maxW && cur) { lines.push(cur); cur = ch; }
+    else cur += ch;
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > 3) {
+    lines.length = 3;
+    lines[2] = lines[2].slice(0, Math.max(1, lines[2].length - 1)) + '…';
+  }
+  return lines;
+}
+function drawEvent(T) {
+  const ev = currentEvent();
+  if (!ev) return;
+  const p = state.t - ev.idx, DUR = 3;
+  const ain = easeOut(Math.min(1, Math.max(0, (p + 0.5) / 0.5))); /* 事件月前半个月淡入 */
+  const aout = easeOut(Math.min(1, (DUR - p) / 0.45));
+  const alpha = Math.min(ain, aout);
+  if (alpha <= 0.01) return;
+
+  const tFont = F('700', 36), dFont = F('500', 19);
+  const lines = wrapText(ev.text, 620, tFont);
+  const dateTxt = monthLabel(ev.idx) + ' · 大事件';
+
+  ctx.font = dFont;
+  const dateW = ctx.measureText(dateTxt).width;
+  let maxW = dateW;
+  ctx.font = tFont;
+  for (const ln of lines) maxW = Math.max(maxW, ctx.measureText(ln).width);
+
+  const padX = 26, padTop = 16, padBot = 16, gap = 8;
+  const dateH = 20 * fs(), tH = 38 * fs(), lineH = tH + 8;
+  const bw = maxW + padX * 2 + 16;
+  const bh = padTop + dateH + gap + lines.length * lineH - 8 + padBot;
+  const bx = W - 64 - bw, by = H - 18 - bh;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const sx = bx + bw, sy = by + bh, sc = 0.92 + 0.08 * ain;
+  ctx.translate(sx, sy); ctx.scale(sc, sc); ctx.translate(-sx, -sy);
+
+  ctx.fillStyle = T.cardBg;
+  rr(bx, by, bw, bh, 16); ctx.fill();
+  ctx.strokeStyle = T.cardBorder; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = '#4C6EF5';
+  rr(bx, by + 12, 5, Math.max(18, bh - 24), 3); ctx.fill();
+
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.beginPath();
+  ctx.arc(bx + padX + 2, by + padTop + dateH / 2 - 1, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = T.cardSub;
+  ctx.font = dFont;
+  ctx.fillText(dateTxt, bx + padX + 14, by + padTop + dateH - 5);
+
+  ctx.fillStyle = T.cardText;
+  ctx.font = tFont;
+  let yy = by + padTop + dateH + gap + tH - 4;
+  for (const ln of lines) { ctx.fillText(ln, bx + padX, yy); yy += lineH; }
+  ctx.restore();
+}
+
+/* ---------- 渲染 ---------- */
+function render(dt) {
+  const T = bgTheme();
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = settings.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  /* 当前插值与排名（仅在场的条目参与排名） */
+  for (const it of items) it.v = valAt(it, state.t);
+  const act = items.filter(it => it.v != null).sort((a, b) => b.v - a.v);
+  act.forEach((it, ri) => { it.rank = ri; });
+  items.forEach(it => { if (it.v == null) it.rank = state.topN + 5; });
+
+  /* 坐标轴上限平滑伸缩 */
+  const vmax = Math.max(1e-9, ...items.filter(it => it.v != null).map(it => it.v));
+  const targetMax = niceCeil(vmax * 1.06);
+  if (!state.axisMax) state.axisMax = targetMax;
+  else {
+    const k = targetMax > state.axisMax ? 8 : 2.2;
+    state.axisMax += (targetMax - state.axisMax) * (1 - Math.exp(-k * dt));
+  }
+
+  /* 条形位置与透明度平滑（中途加入：自底部滑入；退出：滑出并淡出） */
+  const slotH = (L.chartBottom - L.chartTop) / state.topN;
+  const barH = Math.min(58, slotH * 0.72);
+  const iconS = Math.round(Math.min(36, barH * 0.62));
+  const sm = 1 - Math.exp(-7 * dt);
+  for (const it of items) {
+    const vis = visOf(it);
+    const tSlot = vis ? it.rank : state.topN;
+    const tY = L.chartTop + tSlot * slotH + slotH / 2;
+    const tA = vis ? 1 : 0;
+    if (!it.init) { it.animY = tY; it.alpha = tA; it.init = true; }
+    it.animY += (tY - it.animY) * sm;
+    it.alpha += (tA - it.alpha) * sm;
+  }
+
+  /* 名称/图标在条形外部左侧时，整体右移腾出列 */
+  const anyIcon = settings.iconPos !== 'none' && items.some(it => it.iconImg);
+  ctx.font = F('600', 23);
+  let maxNameW = 0;
+  for (const it of items) maxNameW = Math.max(maxNameW, ctx.measureText(it.name).width);
+  const barX = L.barX0
+    + (settings.namePos === 'outL' ? maxNameW + 30 : 0)
+    + (settings.iconPos === 'outL' && anyIcon ? iconS + 26 : 0);
+  const plotW = L.plotRight - barX;
+
+  /* 标题 */
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = T.text;
+  ctx.font = F('700', 40);
+  ctx.fillText(CONFIG.title, L.titleX, L.titleY);
+  ctx.fillStyle = T.muted;
+  ctx.font = F('400', 21);
+  ctx.fillText(CONFIG.subtitle, L.titleX, L.subY);
+
+  /* 大字日期（精确到月，切换时轻微弹跳） */
+  const dIdx = clampIdx(Math.round(state.t));
+  if (dIdx !== state.dateKey) { state.dateKey = dIdx; state.datePop = 1; }
+  if (state.datePop > 0) state.datePop = Math.max(0, state.datePop - dt * 4);
+  const ds = 1 + 0.05 * easeOut(state.datePop);
+  ctx.save();
+  ctx.translate(L.dateX, L.dateBase);
+  ctx.scale(ds, ds);
+  ctx.fillStyle = T.text;
+  ctx.textAlign = 'right';
+  ctx.font = F('800', 66);
+  ctx.fillText(monthLabel(dIdx), 0, 0);
+  ctx.restore();
+
+  /* 网格与刻度 */
+  const step = niceCeil(state.axisMax / 5);
+  const nT = Math.round(state.axisMax / step);
+  ctx.font = F('500', 16);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  for (let k = 0; k <= nT; k++) {
+    const v = k * step;
+    const gx = barX + v / state.axisMax * plotW;
+    ctx.strokeStyle = v === 0 ? T.grid0 : T.grid;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(gx, L.chartTop - 16);
+    ctx.lineTo(gx, L.chartBottom + 12);
+    ctx.stroke();
+    ctx.fillStyle = T.faint;
+    ctx.fillText(fmtTick(v), gx, L.chartBottom + L.axisLabelY);
+  }
+  ctx.textAlign = 'left';
+  ctx.fillStyle = T.faint;
+  ctx.font = F('400', 17);
+  ctx.fillText('单位：' + CONFIG.unit, barX + 2, L.chartTop - 24);
+
+  /* 绘制条形（按当前位置自上而下）。
+     通用布局引擎：排名 / 图标 / 名称 / 数值四个元素，各自可位于
+     条外左侧 outL / 条内左侧 inL / 条内右侧 inR / 条外右侧 outR。
+     条内按阅读顺序 [排名 图标 名称 数值]；
+     条外链自条形向外为 [数值 图标 名称 排名]（数值紧贴条形、排名最外）；
+     条内放不下时右侧整块自动退到条外；条外超宽时名称截断、放不下的元素跳过。 */
+  const draw = [...items].sort((a, b) => a.animY - b.animY);
+  const IN_PAD = 18, IN_GAP = 12, OUT_GAP = 14, MARGIN = 54;
+  const RAD = settings.barShape === 'none' ? 0
+    : settings.barShape === 'large' ? Math.min(22, barH / 2)
+    : settings.barShape === 'pill' ? barH / 2
+    : Math.min(10, barH / 2);
+  for (const it of draw) {
+    if (it.alpha <= 0.02 || it.v == null) continue;
+    const y = it.animY, by = y - barH / 2;
+    const w = Math.max(3, it.v / state.axisMax * plotW);
+    ctx.globalAlpha = it.alpha;
+
+    const nameTxt = it.name;
+    const valTxt = fmt(it.v) + ' ' + CONFIG.unit;
+    const rankTxt = String(it.rank + 1);
+    const onBar = textOn(it.color);
+
+    ctx.font = F('600', 23);
+    const nameW = ctx.measureText(nameTxt).width;
+    ctx.font = F('700', 23);
+    const valW = ctx.measureText(valTxt).width;
+    ctx.font = F('700', 26);
+    const rankW = ctx.measureText(rankTxt).width;
+    const hasIcon = settings.iconPos !== 'none' && !!it.iconImg;
+
+    /* 元素与其位置设置 */
+    const els = {
+      rank:  { key: 'rank',  w: rankW, pos: settings.rankPos },
+      icon:  { key: 'icon',  w: iconS, pos: hasIcon ? settings.iconPos : null },
+      name:  { key: 'name',  w: nameW, pos: settings.namePos },
+      value: { key: 'value', w: valW,  pos: settings.valuePos },
+    };
+    const IN_ORDER = ['rank', 'icon', 'name', 'value'];   /* 条内阅读顺序 */
+    const OUT_ORDER = ['value', 'icon', 'name', 'rank'];  /* 条外自条形向外 */
+
+    /* 数值 auto：条内右侧放得下就进条内，否则走条外右侧 */
+    if (els.value.pos === 'auto') {
+      let occ = IN_PAD * 2;
+      for (const k of IN_ORDER) {
+        const e = els[k];
+        if (e === els.value || !e.pos) continue;
+        if (e.pos === 'inL' || e.pos === 'inR') occ += e.w + IN_GAP;
+      }
+      els.value.pos = (w - occ - valW >= 10) ? 'inR' : 'outR';
+    }
+
+    const blockW = p => {
+      let bw = 0;
+      for (const k of IN_ORDER) {
+        const e = els[k];
+        if (e.pos === p) bw += e.w + (bw ? IN_GAP : 0);
+      }
+      return bw;
+    };
+    let inLw = blockW('inL'), inRw = blockW('inR');
+    /* 条内放不下：条内右侧整块退到条外右侧；左侧块仍放不下也退到条外右侧 */
+    if (inLw + inRw + IN_PAD * 2 > w + 2 && inRw > 0) {
+      for (const k of IN_ORDER) if (els[k].pos === 'inR') els[k].pos = 'outR';
+      inRw = 0;
+    }
+    if (inLw + IN_PAD * 2 > w + 2 && inLw > 0) {
+      for (const k of IN_ORDER) if (els[k].pos === 'inL') els[k].pos = 'outR';
+      inLw = 0;
+    }
+
+    /* 单个元素绘制：alignRight 为真时 x 是右边缘 */
+    const drawEl = (e, x, alignRight) => {
+      if (e.key === 'icon') {
+        ctx.drawImage(it.iconImg, alignRight ? x - iconS : x, y - iconS / 2, iconS, iconS);
+        return;
+      }
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = alignRight ? 'right' : 'left';
+      if (e.key === 'rank') {
+        ctx.fillStyle = e.inside ? onBar : it.color;
+        ctx.font = F('700', 26);
+        ctx.fillText(rankTxt, x, y + 1);
+      } else if (e.key === 'name') {
+        ctx.fillStyle = e.inside ? onBar : T.nameOut;
+        ctx.font = F('600', 23);
+        ctx.fillText(e.txt || nameTxt, x, y + 1);
+      } else {
+        ctx.fillStyle = e.inside ? onBar : T.valOut;
+        ctx.font = F('700', 23);
+        ctx.fillText(valTxt, x, y + 1);
+      }
+    };
+    const truncName = avail => {
+      ctx.font = F('600', 23);
+      let nm = nameTxt;
+      if (ctx.measureText(nm).width > avail) {
+        while (nm.length > 1 && ctx.measureText(nm + '…').width > avail) nm = nm.slice(0, -1);
+        nm += '…';
+      }
+      return nm;
+    };
+
+    /* 条形本体 */
+    ctx.fillStyle = it.color;
+    rr(barX, by, w, barH, RAD);
+    ctx.fill();
+
+    /* 条内内容（整体裁剪到条形圆角矩形内） */
+    if (inLw || inRw) {
+      ctx.save();
+      rr(barX, by, w, barH, RAD);
+      ctx.clip();
+      if (inLw) {
+        let tx = barX + IN_PAD;
+        for (const k of IN_ORDER) {
+          const e = els[k];
+          if (e.pos !== 'inL') continue;
+          e.inside = true;
+          drawEl(e, tx, false);
+          tx += e.w + IN_GAP;
+        }
+      }
+      if (inRw) {
+        let tx = barX + w - IN_PAD - inRw;
+        for (const k of IN_ORDER) {
+          const e = els[k];
+          if (e.pos !== 'inR') continue;
+          e.inside = true;
+          drawEl(e, tx, false);
+          tx += e.w + IN_GAP;
+        }
+      }
+      ctx.restore();
+    }
+
+    /* 条外右侧链：数值 → 图标 → 名称 → 排名 */
+    let cx = barX + w + OUT_GAP;
+    for (const k of OUT_ORDER) {
+      const e = els[k];
+      if (e.pos !== 'outR') continue;
+      e.inside = false;
+      if (e.key === 'name') {
+        const reserve = els.rank.pos === 'outR' ? rankW + OUT_GAP : 0;
+        const avail = W - MARGIN - cx - reserve;
+        if (avail < 26) continue;
+        e.txt = truncName(avail);
+        e.w = ctx.measureText(e.txt).width;
+      }
+      if (cx + e.w > W - MARGIN) continue;
+      drawEl(e, cx, false);
+      cx += e.w + OUT_GAP;
+    }
+
+    /* 条外左侧链：自条形向左 数值 → 图标 → 名称 → 排名（右对齐） */
+    let xe = barX - OUT_GAP;
+    for (const k of OUT_ORDER) {
+      const e = els[k];
+      if (e.pos !== 'outL') continue;
+      e.inside = false;
+      if (e.key === 'name') {
+        const reserve = els.rank.pos === 'outL' ? rankW + OUT_GAP : 0;
+        const avail = xe - MARGIN - reserve;
+        if (avail < 26) continue;
+        e.txt = truncName(avail);
+        e.w = ctx.measureText(e.txt).width;
+      }
+      if (xe - e.w < MARGIN) continue;
+      drawEl(e, xe, true);
+      xe -= e.w + OUT_GAP;
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* 大事件横幅（右下角，随视频一起录制） */
+  drawEvent(T);
+}
+
+/* ---------- 控件引用 ---------- */
+const $ = id => document.getElementById(id);
+const playBtn = $('playBtn'), icPlay = $('icPlay'), icPause = $('icPause');
+const restartBtn = $('restartBtn'), speedSel = $('speedSel'), topNSel = $('topNSel');
+const loopChk = $('loopChk'), exportBtn = $('exportBtn'), settingsBtn = $('settingsBtn');
+const timeline = $('timeline'), tlFill = $('tlFill'), tlHandle = $('tlHandle'), tlTicks = $('tlTicks');
+const readout = $('readout'), recPct = $('recPct');
+const exportPanel = $('exportPanel'), exportVideo = $('exportVideo');
+const downloadLink = $('downloadLink'), closeExport = $('closeExport');
+const settingsPanel = $('settingsPanel'), closeSettings = $('closeSettings'), resetSettings = $('resetSettings');
+const fontSel = $('fontSel'), fontScaleSel = $('fontScaleSel');
+const namePosSel = $('namePosSel'), rankPosSel = $('rankPosSel'), paletteSel = $('paletteSel');
+const valuePosSel = $('valuePosSel'), iconPosSel = $('iconPosSel'), barShapeSel = $('barShapeSel');
+const bgSwatches = $('bgSwatches');
+const eventList = $('eventList'), evMonth = $('evMonth'), evText = $('evText'), evAdd = $('evAdd');
+const toastEl = $('toast');
+
+/* 年度刻度（每年 1 月） */
+(function buildTicks() {
+  for (let i = 0; i <= TOTAL; i++) {
+    const o = monthAt(i);
+    if (o.m === 1) {
+      const t = document.createElement('i');
+      t.style.left = (i / TOTAL * 100) + '%';
+      tlTicks.appendChild(t);
+      const s = document.createElement('span');
+      s.textContent = o.y;
+      s.style.left = (i / TOTAL * 100) + '%';
+      tlTicks.appendChild(s);
+    }
+  }
+})();
+
+function updatePlayUI() {
+  icPlay.style.display = state.playing ? 'none' : 'block';
+  icPause.style.display = state.playing ? 'block' : 'none';
+}
+function togglePlay() {
+  if (state.exporting) return;
+  if (!state.playing && state.t >= TOTAL) { resetAnim(true); state.t = 0; }
+  state.playing = !state.playing;
+  updatePlayUI();
+}
+playBtn.addEventListener('click', togglePlay);
+restartBtn.addEventListener('click', () => {
+  if (state.exporting) return;
+  resetAnim(true); state.t = 0; state.playing = true; updatePlayUI();
+});
+speedSel.addEventListener('change', () => { state.speed = parseFloat(speedSel.value); });
+topNSel.addEventListener('change', () => { state.topN = parseInt(topNSel.value, 10); });
+loopChk.addEventListener('change', () => { state.loop = loopChk.checked; });
+
+window.addEventListener('keydown', e => {
+  const tag = document.activeElement && document.activeElement.tagName;
+  if (e.code === 'Space' && !['SELECT', 'INPUT', 'TEXTAREA', 'BUTTON', 'A'].includes(tag)) {
+    e.preventDefault(); togglePlay();
+  }
+});
+
+/* 时间轴拖动 */
+let scrubbing = false, wasPlaying = false;
+function scrubTo(e) {
+  const rect = timeline.getBoundingClientRect();
+  const p = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  state.t = p * TOTAL;
+}
+timeline.addEventListener('pointerdown', e => {
+  if (state.exporting) return;
+  scrubbing = true; wasPlaying = state.playing; state.playing = false;
+  updatePlayUI();
+  timeline.setPointerCapture(e.pointerId);
+  scrubTo(e);
+});
+timeline.addEventListener('pointermove', e => { if (scrubbing) scrubTo(e); });
+timeline.addEventListener('pointerup', () => {
+  if (!scrubbing) return;
+  scrubbing = false; state.playing = wasPlaying; updatePlayUI();
+});
+
+/* ---------- 提示 ---------- */
+let toastTimer = null;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2800);
+}
+
+/* ---------- 显示设置面板 ---------- */
+const BG_PRESETS = ['#0F172A', '#050505', '#101F1C', '#FFFFFF', '#F1F5F9', '#FAF6EE'];
+
+function markSwatch() {
+  [...bgSwatches.children].forEach(b => {
+    b.classList.toggle('active', b.dataset.color && b.dataset.color.toLowerCase() === settings.bg.toLowerCase());
+  });
+}
+let bgPickInput = null;
+(function buildSwatches() {
+  for (const c of BG_PRESETS) {
+    const b = document.createElement('button');
+    b.className = 'swatch';
+    b.dataset.color = c;
+    b.style.background = c;
+    b.title = c;
+    b.addEventListener('click', () => {
+      settings.bg = c; saveSettings();
+      if (bgPickInput) bgPickInput.value = c;
+      markSwatch();
+    });
+    bgSwatches.appendChild(b);
+  }
+  bgPickInput = document.createElement('input');
+  bgPickInput.type = 'color';
+  bgPickInput.value = settings.bg;
+  bgPickInput.title = '自定义背景色';
+  bgPickInput.addEventListener('input', () => {
+    settings.bg = bgPickInput.value; saveSettings(); markSwatch();
+  });
+  bgSwatches.appendChild(bgPickInput);
+})();
+
+function renderEventList() {
+  eventList.innerHTML = '';
+  if (!settings.events.length) {
+    const d = document.createElement('div');
+    d.className = 'ev-empty';
+    d.textContent = '暂无事件，可在下方添加';
+    eventList.appendChild(d);
+    return;
+  }
+  const rows = settings.events
+    .map((ev, i) => ({ ev, i }))
+    .sort((a, b) => monthIndex(a.ev.month) - monthIndex(b.ev.month));
+  for (const { ev, i } of rows) {
+    const row = document.createElement('div');
+    row.className = 'ev-row';
+    const m = document.createElement('span');
+    m.className = 'ev-m'; m.textContent = ev.month;
+    const t = document.createElement('span');
+    t.className = 'ev-t'; t.textContent = ev.text;
+    const del = document.createElement('button');
+    del.className = 'ev-del'; del.textContent = '删除';
+    del.addEventListener('click', () => {
+      settings.events.splice(i, 1); saveSettings(); renderEventList();
+    });
+    row.appendChild(m); row.appendChild(t); row.appendChild(del);
+    eventList.appendChild(row);
+  }
+}
+function syncSettingsUI() {
+  fontSel.value = settings.font;
+  fontScaleSel.value = String(settings.fontScale);
+  namePosSel.value = settings.namePos;
+  rankPosSel.value = settings.rankPos;
+  valuePosSel.value = settings.valuePos;
+  iconPosSel.value = settings.iconPos;
+  barShapeSel.value = settings.barShape;
+  paletteSel.value = settings.palette;
+  const pick = bgSwatches.querySelector('input[type=color]');
+  if (pick) pick.value = settings.bg;
+  markSwatch();
+  renderEventList();
+}
+fontSel.addEventListener('change', () => { settings.font = fontSel.value; saveSettings(); });
+fontScaleSel.addEventListener('change', () => { settings.fontScale = parseFloat(fontScaleSel.value); saveSettings(); });
+namePosSel.addEventListener('change', () => { settings.namePos = namePosSel.value; saveSettings(); });
+rankPosSel.addEventListener('change', () => { settings.rankPos = rankPosSel.value; saveSettings(); });
+valuePosSel.addEventListener('change', () => { settings.valuePos = valuePosSel.value; saveSettings(); });
+iconPosSel.addEventListener('change', () => { settings.iconPos = iconPosSel.value; saveSettings(); });
+barShapeSel.addEventListener('change', () => { settings.barShape = barShapeSel.value; saveSettings(); });
+paletteSel.addEventListener('change', () => { settings.palette = paletteSel.value; applyPalette(); saveSettings(); });
+resetSettings.addEventListener('click', () => {
+  settings = {
+    font: SETTINGS_DEFAULTS.font, fontScale: SETTINGS_DEFAULTS.fontScale,
+    namePos: SETTINGS_DEFAULTS.namePos, rankPos: SETTINGS_DEFAULTS.rankPos,
+    valuePos: SETTINGS_DEFAULTS.valuePos, iconPos: SETTINGS_DEFAULTS.iconPos,
+    barShape: SETTINGS_DEFAULTS.barShape,
+    palette: SETTINGS_DEFAULTS.palette, bg: SETTINGS_DEFAULTS.bg,
+    events: EVENTS.slice(),
+  };
+  applyPalette(); saveSettings(); syncSettingsUI();
+  toast('已恢复默认设置');
+});
+settingsBtn.addEventListener('click', () => {
+  evMonth.min = CONFIG.startMonth;
+  evMonth.max = monthKey(TOTAL);
+  syncSettingsUI();
+  settingsPanel.classList.remove('hidden');
+});
+closeSettings.addEventListener('click', () => settingsPanel.classList.add('hidden'));
+settingsPanel.addEventListener('click', e => {
+  if (e.target === settingsPanel) settingsPanel.classList.add('hidden');
+});
+evAdd.addEventListener('click', () => {
+  const m = evMonth.value, txt = evText.value.trim();
+  if (!m) { toast('请先选择事件月份'); return; }
+  if (!txt) { toast('请填写事件描述'); return; }
+  const idx = monthIndex(m);
+  if (idx < 0 || idx > TOTAL) {
+    toast('月份需在 ' + CONFIG.startMonth + ' 至 ' + monthKey(TOTAL) + ' 之间');
+    return;
+  }
+  settings.events.push({ month: m, text: txt });
+  saveSettings(); renderEventList();
+  evText.value = '';
+  toast('已添加事件：' + m + ' ' + txt);
+});
+
+/* ---------- 视频导出（MediaRecorder 实时录制画布） ---------- */
+let rec = null, chunks = [], holdTimer = null, lastURL = null;
+
+function pickMime() {
+  if (!window.MediaRecorder) return null;
+  const cands = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+  for (const m of cands) {
+    try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) { /* 忽略 */ }
+  }
+  return null;
+}
+
+function startExport() {
+  if (state.exporting) return;
+  if (!canvas.captureStream || !window.MediaRecorder) {
+    toast('当前浏览器不支持录制，请使用最新版 Chrome 或 Edge（桌面版）');
+    return;
+  }
+  const mime = pickMime();
+  if (!mime) { toast('未找到可用的视频编码格式，请更换浏览器重试'); return; }
+
+  state.exporting = true;
+  document.body.classList.add('exporting');
+  exportPanel.classList.add('hidden');
+  settingsPanel.classList.add('hidden');
+  if (lastURL) { URL.revokeObjectURL(lastURL); lastURL = null; }
+
+  resetAnim(true);
+  state.t = 0; state.playing = true; state.loop = false; loopChk.checked = false;
+  updatePlayUI();
+
+  chunks = [];
+  const stream = canvas.captureStream(60);
+  rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12000000 });
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.onstop = () => {
+    const ext = mime.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
+    const blob = new Blob(chunks, { type: mime.split(';')[0] });
+    lastURL = URL.createObjectURL(blob);
+    exportVideo.src = lastURL;
+    downloadLink.href = lastURL;
+    /* MediaRecorder 录出的 WebM 头部缺时长，用 seek 让预览回填正确时长 */
+    exportVideo.onloadedmetadata = () => {
+      if (exportVideo.duration === Infinity) {
+        exportVideo.currentTime = 1e7;
+        exportVideo.onseeked = () => { exportVideo.onseeked = null; exportVideo.currentTime = 0; };
+      }
+    };
+    const end = monthAt(TOTAL);
+    downloadLink.download = CONFIG.title + '_' + CONFIG.startMonth + '_' + end.y + '-' + String(end.m).padStart(2, '0') + '.' + ext;
+    state.exporting = false; state.playing = false;
+    updatePlayUI();
+    document.body.classList.remove('exporting');
+    exportPanel.classList.remove('hidden');
+  };
+  rec.start(200);
+  toast('开始录制：动画播放完毕后自动生成视频，请保持页面前台');
+}
+exportBtn.addEventListener('click', startExport);
+closeExport.addEventListener('click', () => exportPanel.classList.add('hidden'));
+
+/* ---------- 主循环 ---------- */
+let last = performance.now();
+function frame(now) {
+  let dt = (now - last) / 1000;
+  last = now;
+  if (!(dt > 0) || dt > 0.05) dt = 0.016;
+
+  if (state.playing) {
+    state.t += dt * monthsPerSec();
+    if (state.t >= TOTAL) {
+      state.t = TOTAL;
+      if (state.exporting) {
+        if (!holdTimer) {
+          holdTimer = setTimeout(() => {
+            holdTimer = null;
+            try { if (rec && rec.state !== 'inactive') rec.stop(); } catch (e) { /* 忽略 */ }
+          }, 1000); /* 结尾定格 1 秒再停止录制 */
+        }
+      } else if (state.loop) {
+        resetAnim(true); state.t = 0;
+      } else {
+        state.playing = false; updatePlayUI();
+      }
+    }
+  }
+
+  render(dt);
+
+  const pct = TOTAL ? state.t / TOTAL : 0;
+  tlFill.style.width = (pct * 100) + '%';
+  tlHandle.style.left = (pct * 100) + '%';
+  const ri = clampIdx(Math.round(state.t));
+  readout.textContent = monthLabel(ri) + ' · 第 ' + (ri + 1) + ' / ' + (TOTAL + 1) + ' 月';
+  if (state.exporting) recPct.textContent = Math.round(pct * 100) + '%';
+
+  requestAnimationFrame(frame);
+}
+
+/* ---------- 启动 ---------- */
+resetAnim(true);
+state.playing = true;
+updatePlayUI();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

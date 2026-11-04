@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-chrome="auto">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>条形动画工作台 · Bar Race Studio</title>
+<link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+<div class="app">
+
+  <header class="bar">
+    <div class="brand">
+      条形动画工作台
+      <em id="buildTag">dev</em>
+    </div>
+
+    <label class="field">
+      <b>数据集</b>
+      <select id="datasetSel" title="切换 config 目录下的数据集"></select>
+    </label>
+    <button class="btn" id="btnImport" title="从本地选择 JSON 配置">
+      <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+        <path d="M12 3v9m0 0 3.4-3.4M12 12 8.6 8.6M4 15v4h16v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      导入配置
+    </button>
+    <button class="btn" id="btnSave" title="把当前配置写回 config 文件">写回文件</button>
+
+    <div class="spacer"></div>
+
+    <div class="work hidden" id="work">
+      <span id="workText">准备中</span>
+      <span class="meter"><i id="workMeter"></i></span>
+      <button class="btn" id="workCancel">取消</button>
+    </div>
+
+    <button class="btn" id="btnSettings">
+      <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+        <g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+          <path d="M4 7h16M4 12h16M4 17h16"/>
+        </g>
+        <g fill="currentColor">
+          <circle cx="9" cy="7" r="2.3"/><circle cx="15" cy="12" r="2.3"/><circle cx="7" cy="17" r="2.3"/>
+        </g>
+      </svg>
+      显示设置
+    </button>
+    <button class="btn key" id="btnExport">
+      <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+        <path d="M11 4h2v7.2l2.6-2.6 1.4 1.4L12 15l-5-5 1.4-1.4L11 11.2z" fill="currentColor"/>
+        <path d="M5 18h14v2H5z" fill="currentColor"/>
+      </svg>
+      导出
+    </button>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="chart" width="1920" height="1080"></canvas>
+    <div class="rec"><i></i><span id="busyKind">REC</span><span id="busyPct">0%</span></div>
+  </main>
+
+  <section class="transport">
+    <button class="ctl key" id="playBtn" title="播放 / 暂停（空格）" aria-label="播放或暂停">
+      <svg id="icPlay" viewBox="0 0 24 24" width="17" height="17"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+      <svg id="icPause" viewBox="0 0 24 24" width="17" height="17" style="display:none"><path d="M6.5 5h3.2v14H6.5zM14.3 5h3.2v14h-3.2z" fill="currentColor"/></svg>
+    </button>
+    <button class="ctl" id="restartBtn" title="回到开头" aria-label="回到开头">
+      <svg viewBox="0 0 24 24" width="17" height="17"><path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z" fill="currentColor"/></svg>
+    </button>
+
+    <div class="track" id="timeline" role="slider" aria-label="时间轴" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+      <div class="rail"></div>
+      <div class="fill" id="tlFill"></div>
+      <div class="ticks" id="tlTicks"></div>
+      <div class="head" id="tlHead"></div>
+    </div>
+
+    <div class="readout" id="readout">—</div>
+
+    <label class="field"><b>节奏</b><select id="paceSel" title="每个周期停留几秒，决定整体快慢"></select></label>
+    <span class="estimate" id="paceEstimate" title="周期数 × 每周期秒数">—</span>
+    <label class="toggle"><input type="checkbox" id="loopChk" /><span>循环</span></label>
+    <button class="btn" id="btnStill" title="把当前这一帧存成 PNG">存当前帧</button>
+  </section>
+
+  <div class="issues" id="issues"></div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<aside class="drawer" id="drawer" aria-label="显示设置" aria-hidden="true">
+  <header>
+    <span>显示设置</span>
+    <div class="spacer"></div>
+    <button class="btn" id="btnReset" title="只重置显示参数，不动数据">恢复默认</button>
+  </header>
+  <div class="body">
+    <div class="group">
+      <h4>时间</h4>
+      <div class="grid2">
+        <label>粒度<select id="granSel"></select></label>
+        <label>起始周期<input type="text" id="startInp" spellcheck="false" /></label>
+        <label>数值小数位<input type="number" id="decSel" min="0" max="4" step="1" /></label>
+        <label>单位<input type="text" id="unitInp" placeholder="例如 万辆" /></label>
+      </div>
+    </div>
+
+    <div class="group">
+      <h4>播放</h4>
+      <div class="grid2">
+        <label>显示条数<select id="topNSel"></select></label>
+        <label>每周期秒数<input type="number" id="paceInp" min="0.15" max="8" step="0.05" /></label>
+      </div>
+      <div class="estimate-row">
+        <span>预计总时长</span>
+        <output id="paceTotal">—</output>
+        <em>周期数 × 每周期秒数；数据变长时节奏保持不变</em>
+      </div>
+    </div>
+
+    <div class="group">
+      <h4>排版</h4>
+      <div class="grid2">
+        <label>字体<select id="fontSel"></select></label>
+        <label>字号<select id="fontScaleSel"></select></label>
+        <label>名称位置<select id="namePosSel"></select></label>
+        <label>排名位置<select id="rankPosSel"></select></label>
+        <label>数值位置<select id="valuePosSel"></select></label>
+        <label>品牌图标<select id="iconPosSel"></select></label>
+        <label>条形形状<select id="barShapeSel"></select></label>
+        <label>排序<select id="sortDirSel"></select></label>
+        <label>日期切换<select id="dateAnimSel"></select></label>
+      </div>
+      <div class="switches">
+        <label class="toggle"><input type="checkbox" id="gridChk" /><span>显示网格刻度</span></label>
+        <label class="toggle"><input type="checkbox" id="valueChk" /><span>显示数值</span></label>
+      </div>
+    </div>
+
+    <div class="group">
+      <h4>颜色</h4>
+      <div class="grid2">
+        <label>配色方案<select id="paletteSel"></select></label>
+        <label>画布背景<div class="swatches" id="bgSwatches"></div></label>
+      </div>
+    </div>
+
+    <div class="group">
+      <h4>画面尺寸</h4>
+      <p class="hint">布局数字写在基准坐标系里，预览和导出分辨率各自独立。</p>
+      <div class="grid2">
+        <label>基准宽<input type="number" id="designWSel" min="320" max="3840" step="10" /></label>
+        <label>基准高<input type="number" id="designHSel" min="240" max="2160" step="10" /></label>
+        <label>预览宽<input type="number" id="canvasWSel" min="320" max="3840" step="10" /></label>
+        <label>预览高<input type="number" id="canvasHSel" min="240" max="2160" step="10" /></label>
+      </div>
+    </div>
+
+    <div class="group">
+      <h4>导出</h4>
+      <div class="grid2">
+        <label>格式<select id="fmtSel"></select></label>
+        <label>帧率<select id="fpsSel"></select></label>
+        <label>宽<input type="number" id="exWSel" min="320" max="3840" step="10" /></label>
+        <label>高<input type="number" id="exHSel" min="240" max="2160" step="10" /></label>
+        <label>码率 Mbps<input type="number" id="brSel" min="1" max="80" step="1" /></label>
+      </div>
+      <div class="switches">
+        <label class="toggle"><input type="checkbox" id="alphaSel" /><span>透明背景（仅序列帧）</span></label>
+      </div>
+    </div>
+
+    <div class="group">
+      <h4>标题</h4>
+      <div class="grid2">
+        <label>主标题<input type="text" id="titleInp" /></label>
+        <label>副标题<input type="text" id="subInp" /></label>
+      </div>
+    </div>
+
+    <div class="group">
+      <h4>大事件</h4>
+      <p class="hint">播放到达该周期时在画布右下角弹出，会一起导进成片。</p>
+      <div class="ev" id="eventList"></div>
+      <div class="ev-add">
+        <input type="text" id="evPeriod" spellcheck="false" />
+        <input type="text" id="evText" maxlength="80" placeholder="事件描述，例如 新车型上市开始放量" />
+        <button class="btn" id="evAdd">添加</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h4>说明</h4>
+      <dl class="doc">
+        <div>
+          <dt>改数据</dt>
+          <dd>编辑 <code>config/</code> 里的 JSON。每个条目一个 <code>{ name, values }</code>，<code>values</code> 按 <code>time.granularity</code> 的周期依次填数；填 <code>null</code> 表示该周期不在场——开头一段是中途加入，结尾一段是退出。<code>color</code>、<code>icon</code> 可省略，省略时自动配色并生成圆牌徽标。</dd>
+        </div>
+        <div>
+          <dt>实时看效果</dt>
+          <dd><code>node tools/serve.mjs</code> 开 <code>localhost:5278</code>，存盘即重读并校验，报错列在画布下方。不想开服务器就 <code>node tools/build.mjs</code> 生成 <code>dist/index.html</code>，双击可跑，配置靠「导入配置」或把 JSON 拖到画布上——浏览器不允许本地页面自动读同目录文件。<code>node tools/check.mjs</code> 是无头渲染校验。</dd>
+        </div>
+        <div>
+          <dt>导出</dt>
+          <dd>逐帧录制，不受窗口大小影响。<code>PNG 序列帧</code>优先写进你选的文件夹，拿不到时打包 zip 并按分辨率限帧。剪辑软件读不准 webm 时长就转封装：<code>ffmpeg -i 输入.webm -c:v libx264 -pix_fmt yuv420p 输出.mp4</code>。</dd>
+        </div>
+        <div>
+          <dt>快捷键</dt>
+          <dd>空格 播放/暂停 · <code>Home</code> 回开头 · <code>←</code> <code>→</code> 单步一个周期 · <code>Esc</code> 关闭面板</dd>
+        </div>
+        <div>
+          <dt>关于落盘</dt>
+          <dd>页面上的调整即时生效但不自动保存——配置文件是唯一真相。要留就点「写回文件」或「下载配置」。</dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+  <footer>
+    <button class="btn" id="btnSave2">写回文件</button>
+    <button class="btn key" id="btnDone">完成</button>
+  </footer>
+</aside>
+
+<div class="sheet hidden" id="sheet">
+  <div class="box">
+    <h3 id="sheetTitle">成片</h3>
+    <video id="sheetVideo" controls playsinline></video>
+    <div class="end">
+      <button class="btn" id="sheetClose">关闭</button>
+      <a class="btn key" id="sheetDownload" download>下载</a>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".json,application/json" class="hidden" multiple />
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.invalid/bar/chart.schema.json",
+  "title": "条形动画数据集",
+  "type": "object",
+  "required": ["title", "time", "series"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "note": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "title": { "type": "string", "maxLength": 60 },
+    "subtitle": { "type": "string", "maxLength": 120 },
+    "unit": { "type": "string", "maxLength": 12, "description": "数值单位，直接拼在数字后面，例如 万辆" },
+    "time": {
+      "type": "object",
+      "required": ["granularity", "start"],
+      "additionalProperties": false,
+      "properties": {
+        "granularity": { "enum": ["year", "quarter", "month", "day"], "default": "month" },
+        "start": {
+          "type": "string",
+          "description": "起始周期：year 写 2024，quarter 写 2024-Q1，month 写 2024-01，day 写 2024-01-15"
+        },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 4, "default": 1 }
+      }
+    },
+    "series": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "values"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "values": {
+            "type": "array",
+            "minItems": 2,
+            "items": { "type": ["number", "null"] },
+            "description": "按 time.granularity 的周期依次填；null 表示该周期不在场"
+          },
+          "color": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" },
+          "icon": { "type": "string", "description": "内联 SVG 字符串，或图片路径 / 地址" },
+          "group": { "type": "string" }
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["period", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "period": { "type": "string", "description": "与 time.start 同一种写法" },
+          "text": { "type": "string", "minLength": 1, "maxLength": 80 }
+        }
+      }
+    },
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "font": { "enum": ["sans", "serif", "kai", "mono", "hei"], "default": "sans" },
+        "fontScale": { "enum": [0.82, 1, 1.2], "default": 1 },
+        "namePos": { "enum": ["outL", "inL", "inR", "outR"], "default": "inL" },
+        "rankPos": { "enum": ["outL", "inL", "inR", "outR"], "default": "outL" },
+        "valuePos": { "enum": ["auto", "outL", "inL", "inR", "outR"], "default": "auto" },
+        "iconPos": { "enum": ["none", "outL", "inL", "inR", "outR"], "default": "outL" },
+        "barShape": { "enum": ["none", "small", "large", "pill"], "default": "small" },
+        "sortDir": { "enum": ["desc", "asc"], "default": "desc" },
+        "dateAnim": { "enum": ["pop", "fade", "none"], "default": "pop", "description": "日期换月时的过渡：轻微弹跳 / 渐显 / 无动画" },
+        "showGrid": { "type": "boolean", "default": true },
+        "showValue": { "type": "boolean", "default": true },
+        "palette": { "enum": ["jewel", "ocean", "vivid", "morandi", "print", "field"], "default": "jewel" },
+        "bg": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "default": "#121311" },
+        "topN": { "type": "integer", "minimum": 3, "maximum": 30, "default": 10 },
+        "secondsPerPeriod": {
+          "type": "number",
+          "minimum": 0.15,
+          "maximum": 8,
+          "default": 1,
+          "description": "每个周期停留几秒。总时长 = 周期数 × 这个值，所以数据变长时节奏不会变快"
+        },
+        "loop": { "type": "boolean", "default": false }
+      }
+    },
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "design": {
+          "type": "object",
+          "description": "布局数字所在的坐标系；画布尺寸不同时会等比缩放居中",
+          "properties": {
+            "width": { "type": "integer", "minimum": 320, "maximum": 3840 },
+            "height": { "type": "integer", "minimum": 240, "maximum": 2160 }
+          },
+          "additionalProperties": false
+        },
+        "canvas": {
+          "type": "object",
+          "description": "预览画布的实际像素",
+          "properties": {
+            "width": { "type": "integer", "minimum": 320, "maximum": 3840 },
+            "height": { "type": "integer", "minimum": 240, "maximum": 2160 }
+          },
+          "additionalProperties": false
+        },
+        "plot": {
+          "type": "object",
+          "properties": {
+            "left": { "type": "number" },
+            "right": { "type": "number" },
+            "top": { "type": "number" },
+            "bottom": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        "bar": {
+          "type": "object",
+          "properties": {
+            "heightRatio": { "type": "number", "minimum": 0.2, "maximum": 1 },
+            "maxHeight": { "type": "number", "minimum": 8, "maximum": 400 }
+          },
+          "additionalProperties": false
+        },
+        "margin": { "type": "number", "minimum": 0, "maximum": 600 },
+        "padIn": { "type": "number", "minimum": 0 },
+        "gapIn": { "type": "number", "minimum": 0 },
+        "gapOut": { "type": "number", "minimum": 0 }
+      }
+    },
+    "export": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "integer", "minimum": 320, "maximum": 3840 },
+        "height": { "type": "integer", "minimum": 240, "maximum": 2160 },
+        "fps": { "type": "integer", "minimum": 10, "maximum": 120 },
+        "bitrateMbps": { "type": "number", "minimum": 1, "maximum": 80 },
+        "format": { "enum": ["webm", "mp4", "png-seq"], "default": "webm" },
+        "transparent": { "type": "boolean", "default": false }
+      }
+    }
+  }
+}
