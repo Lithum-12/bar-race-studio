@@ -74,19 +74,7 @@ button, select, input, textarea { font: inherit; color: inherit }
   flex-wrap: wrap;
 }
 
-.brand {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: .01em;
-}
-.brand em {
-  font: 400 11px/1 var(--mono);
-  color: var(--ink-3);
-  font-style: normal;
-}
+.brand { font-weight: 700; font-size: 15px }
 
 .spacer { flex: 1 1 auto }
 
@@ -385,11 +373,23 @@ body[data-drawer] .drawer { transform: none }
 .drawer .body { overflow: auto; padding: 4px 18px 18px; flex: 1 }
 .drawer footer {
   display: flex;
+  align-items: center;
   gap: 8px;
-  justify-content: flex-end;
   padding: 12px 18px;
   border-top: 1px solid var(--rule);
 }
+.repo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: -8px;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  color: var(--ink-3);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+.repo-link:hover { color: var(--ink); background: var(--sunken) }
 
 .group { padding-top: 18px }
 .group > h4 {

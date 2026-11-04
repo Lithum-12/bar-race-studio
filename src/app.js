@@ -869,7 +869,6 @@ async function boot() {
   buildControls();
   wireTransport();
   app.src = await detectSource();
-  $('buildTag').textContent = { inline: '单文件版', server: '本地服务', file: 'file://' }[app.src.kind];
 
   const all = await refreshDatasets();
   if (all.length) {

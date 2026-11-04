@@ -156,8 +156,6 @@ html = html.replace(scriptTag[0],
   '<script>window.__INLINE_CONFIG__=' + inlineJson(configs) + ';</script>\n'
   + '<script type="module">\n' + bundle + '\n</script>');
 
-html = html.replace('<em id="buildTag">dev</em>', '<em id="buildTag">build</em>');
-
 if (!existsSync(dirname(OUT))) mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, html);
 
