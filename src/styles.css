@@ -378,18 +378,9 @@ body[data-drawer] .drawer { transform: none }
   padding: 12px 18px;
   border-top: 1px solid var(--rule);
 }
-.repo-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: -8px;
-  padding: 6px 8px;
-  border-radius: var(--radius);
-  color: var(--ink-3);
-  font-size: 12.5px;
-  text-decoration: none;
-}
-.repo-link:hover { color: var(--ink); background: var(--sunken) }
+/* .ctl 用在 a 上时：UA 的链接色优先级高于继承，必须显式给色，
+   否则图标会变成默认蓝，且 a 自带下划线。 */
+a.ctl { color: var(--ink); text-decoration: none }
 
 .group { padding-top: 18px }
 .group > h4 {
