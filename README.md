@@ -2,7 +2,7 @@
 
 把一串按时间排列的数字变成会重排的横向条形图，再录成视频。数据在 `config/*.json` 里，页面只负责读它。
 
-![六个条目按 8 秒一轮改变长度和纵向位次，右上角的月份同步切换](assets/banner.svg)
+![八个条目在四个时刻之间连续改变长度和纵向位次，排名、数值、月份和大事件同步切换](assets/banner.svg)
 
 线上版：<https://lithum-12.github.io/bar-race-studio/>
 需要桌面版 Chrome 或 Edge 才能导出视频；不支持 webm 编码的浏览器会退到 mp4。
@@ -35,6 +35,7 @@
 node tools/serve.mjs          # http://localhost:5278，改 JSON 存盘即热更新
 node tools/build.mjs          # 产出 dist/index.html
 node tools/check.mjs          # 无头渲染校验，57 条断言
+node tools/banner.mjs         # 重新生成上面那张 banner
 ```
 
 拆成多文件是为了能读，代价是 `file://` 下浏览器禁止加载 module 和 fetch 本地文件——直接双击源码里的 `index.html` 会白屏。所以发布版由 `build.mjs` 把 13 个模块、样式和全部数据集内联成一个文件，双击可跑；那种情况下配置只能靠「导入配置」选文件或把 JSON 拖到画布上。
@@ -73,8 +74,10 @@ src/
   zip.js        store-only ZIP
   app.js        界面装配
 config/         数据集 + JSON Schema
-tools/          构建、服务、校验
+tools/          构建、服务、校验、banner 生成
 ```
+
+顶部的 banner 不是手画的：`tools/banner.mjs` 用一套桩 2D context 跑真实的 `render.js`，把四个时刻的绘制指令翻译成 SVG（位次走 `translateY`、长度走 `scaleX`、数值标签跟着条尾平移并按时刻换字）。改了 UI 或数据重跑一次，图就跟着变——手画的 banner 迟早会和程序对不上。
 
 ## 已知的坑
 
