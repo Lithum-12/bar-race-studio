@@ -77,8 +77,11 @@ export async function exportVideo(chart, spec, onProgress, signal) {
   });
 
   rec.start(400);
+  /* MediaRecorder 录不出带 alpha 的流，透明底只对序列帧生效；
+     这里强行关掉，免得用户以为成片是透明的 */
+  const videoSpec = { ...spec, transparent: false };
   try {
-    await runFrames(canvas, chart, spec, onProgress, async () => {
+    await runFrames(canvas, chart, videoSpec, onProgress, async () => {
       track.requestFrame();
       await sleep(0);
     }, signal);

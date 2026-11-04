@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" width="1200" height="360" role="img">
+  <title>条形动画工作台</title>
+  <desc>六个条目按 8 秒一轮重新排名：条形同时改变长度和纵向位次，右上角的月份随之切换。</desc>
+  <style>
+    text {
+      font-family: system-ui, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+      fill: #F2EFE7;
+    }
+    .bn-bar  { animation: rise 8s cubic-bezier(.45,0,.2,1) infinite }
+    .bn-grow { animation: len  8s cubic-bezier(.45,0,.2,1) infinite;
+            transform-box: fill-box; transform-origin: left center }
+    .bn-date { animation: onair 8s linear infinite }
+    .bn-tl   { animation: sweep 8s linear infinite; transform-box: fill-box; transform-origin: left center }
+
+    /* 每个条目把四个状态的位次和长度写成自定义属性，共用同一份关键帧 */
+    @keyframes rise {
+      0%, 100% { transform: translate(170px, var(--y0)) }
+      25%      { transform: translate(170px, var(--y1)) }
+      50%      { transform: translate(170px, var(--y2)) }
+      75%      { transform: translate(170px, var(--y3)) }
+    }
+    @keyframes len {
+      0%, 100% { transform: scaleX(var(--w0)) }
+      25%      { transform: scaleX(var(--w1)) }
+      50%      { transform: scaleX(var(--w2)) }
+      75%      { transform: scaleX(var(--w3)) }
+    }
+    @keyframes onair { 0%, 24% { opacity: 1 } 25%, 100% { opacity: 0 } }
+    @keyframes sweep { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .bn-bar, .bn-grow, .bn-date, .bn-tl { animation: none }
+    }
+  </style>
+
+  <rect width="1200" height="360" fill="#121311"/>
+
+  <text x="56" y="52" font-size="27" font-weight="700">条形动画工作台</text>
+  <text x="56" y="78" font-size="14" fill="#A9A498">config 里的数字 → 会重排的横向条形 → 导出的视频</text>
+
+  <g font-size="30" font-weight="800" text-anchor="end">
+    <text class="bn-date" x="1144" y="58" style="opacity:1">2024年1月</text>
+    <text class="bn-date" x="1144" y="58" style="opacity:0">2024年7月</text>
+    <text class="bn-date" x="1144" y="58" style="opacity:0">2025年1月</text>
+    <text class="bn-date" x="1144" y="58" style="opacity:0">2025年7月</text>
+  </g>
+
+  <g stroke="rgba(242,239,231,.11)" stroke-width="1">
+    <path d="M170 96V286"/><path d="M395 96V286"/><path d="M620 96V286"/>
+    <path d="M845 96V286"/><path d="M1070 96V286"/>
+  </g>
+  <g font-size="11" fill="#7E7A70" text-anchor="middle">
+    <text x="170" y="302">0</text><text x="395" y="302">25</text><text x="620" y="302">50</text>
+    <text x="845" y="302">75</text><text x="1070" y="302">100</text>
+  </g>
+  <text x="170" y="90" font-size="11" fill="#7E7A70">单位：万辆</text>
+
+  <!-- 位次 y = 100 + 排名 × 30；长度是 900px 轨道的缩放比 -->
+  <g class="bn-bar" style="--y0:100px;--y1:100px;--y2:160px;--y3:220px;transform:translate(170px,var(--y0))">
+    <text x="-14" y="15" font-size="14" fill="#E7E3D9" text-anchor="end">极光</text>
+    <g class="bn-grow" style="--w0:1;--w1:.92;--w2:.70;--w3:.62;transform:scaleX(var(--w0))">
+      <rect width="900" height="22" fill="#0E9F8C"/>
+    </g>
+  </g>
+  <g class="bn-bar" style="--y0:130px;--y1:130px;--y2:100px;--y3:130px;transform:translate(170px,var(--y0))">
+    <text x="-14" y="15" font-size="14" fill="#E7E3D9" text-anchor="end">星辰</text>
+    <g class="bn-grow" style="--w0:.78;--w1:.80;--w2:.84;--w3:.82;transform:scaleX(var(--w0))">
+      <rect width="900" height="22" fill="#D9542F"/>
+    </g>
+  </g>
+  <g class="bn-bar" style="--y0:160px;--y1:160px;--y2:250px;--y3:250px;transform:translate(170px,var(--y0))">
+    <text x="-14" y="15" font-size="14" fill="#E7E3D9" text-anchor="end">赤焰</text>
+    <g class="bn-grow" style="--w0:.55;--w1:.62;--w2:.40;--w3:.30;transform:scaleX(var(--w0))">
+      <rect width="900" height="22" fill="#2FA35C"/>
+    </g>
+  </g>
+  <g class="bn-bar" style="--y0:190px;--y1:220px;--y2:190px;--y3:160px;transform:translate(170px,var(--y0))">
+    <text x="-14" y="15" font-size="14" fill="#E7E3D9" text-anchor="end">蓝鲸</text>
+    <g class="bn-grow" style="--w0:.42;--w1:.50;--w2:.60;--w3:.68;transform:scaleX(var(--w0))">
+      <rect width="900" height="22" fill="#D6406E"/>
+    </g>
+  </g>
+  <g class="bn-bar" style="--y0:220px;--y1:190px;--y2:130px;--y3:100px;transform:translate(170px,var(--y0))">
+    <text x="-14" y="15" font-size="14" fill="#E7E3D9" text-anchor="end">云帆</text>
+    <g class="bn-grow" style="--w0:.30;--w1:.52;--w2:.76;--w3:.96;transform:scaleX(var(--w0))">
+      <rect width="900" height="22" fill="#3B6FE0"/>
+    </g>
+  </g>
+  <g class="bn-bar" style="--y0:250px;--y1:250px;--y2:220px;--y3:190px;transform:translate(170px,var(--y0))">
+    <text x="-14" y="15" font-size="14" fill="#E7E3D9" text-anchor="end">磐石</text>
+    <g class="bn-grow" style="--w0:.08;--w1:.26;--w2:.48;--w3:.66;transform:scaleX(var(--w0))">
+      <rect width="900" height="22" fill="#7A5AF8"/>
+    </g>
+  </g>
+
+  <rect x="170" y="320" width="900" height="3" fill="rgba(242,239,231,.13)"/>
+  <rect class="bn-tl" x="170" y="320" width="900" height="3" fill="#B4432A" style="transform:scaleX(1)"/>
+  <text x="170" y="346" font-size="11" fill="#7E7A70">8 秒一轮 · 位次和长度同时插值 · 与页面里的动画是同一套算法</text>
+</svg>
