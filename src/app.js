@@ -14,7 +14,8 @@ import { createScene } from './render.js';
 import { createClock } from './anim.js';
 import { periodLabel, periodKey, periodTick, parseStart, startHint, GRANULARITIES, GRAN_LABEL } from './time.js';
 import { FONTS, FONT_SCALE_KEYS } from './text.js';
-import { PALETTES, BG_PRESETS, bgLabel, normalizeHex } from './color.js';
+import { PALETTES, BG_PRESETS, normalizeHex } from './color.js';
+import { setOptions } from './select.js';
 import { exportVideo, exportPngSequence, exportStill, download } from './recorder.js';
 
 const $ = id => document.getElementById(id);
@@ -37,16 +38,8 @@ const FMT_TEXT = { webm: 'WebM 视频', mp4: 'MP4 视频', 'png-seq': 'PNG 序�
 const DATE_ANIM_TEXT = { pop: '轻微弹跳', fade: '渐显', none: '无动画' };
 /* 走带条上的粗档位；精确值在设置里填 */
 const PACE_OPTS = [0.5, 0.7, 0.9, 1.2, 1.6, 2.2, 3];
+const TOPN_OPTS = [5, 8, 10, 12, 15, 20, 25, 30];
 
-function fill(sel, pairs, value) {
-  sel.textContent = '';
-  for (const [v, label] of pairs) {
-    const o = el('option', null, label);
-    o.value = String(v);
-    sel.appendChild(o);
-  }
-  if (value !== undefined && value !== null) sel.value = String(value);
-}
 
 /* ---------- 运行环境与数据源 ---------- */
 function serverSource() {
@@ -109,6 +102,7 @@ const app = {
   scene: null,
   src: fileSource(new Error('尚未初始化')),
   dataset: null,
+  dirNames: [],
   session: new Map(),
   busy: null,
   cancel: null,
@@ -229,13 +223,12 @@ function fmtSeconds(s) {
 /* 节奏有两个入口：走带条的粗档和设置里的精确值，动哪边都要把两边与预计时长一起同步 */
 function syncPace() {
   const v = app.chart.cfg.style.secondsPerPeriod;
-  const ps = $('paceSel');
-  const opts = PACE_OPTS.includes(v) ? PACE_OPTS : [...PACE_OPTS, v].sort((a, b) => a - b);
-  fill(ps, opts.map(n => [n, n + ' 秒/周期']), v);
+  setOptions($('paceSel'), PACE_OPTS.map(n => [n, n + ' 秒/周期']), v);
   const inp = $('paceInp');
   if (document.activeElement !== inp) inp.value = String(v);
-  $('paceEstimate').textContent = '约 ' + fmtSeconds(app.clock.total * v);
-  $('paceTotal').textContent = fmtSeconds(app.clock.total * v) + '（' + app.clock.total + ' 个周期）';
+  const total = fmtSeconds(app.clock.total * v);
+  $('paceEstimate').textContent = '约 ' + total;
+  $('paceTotal').textContent = total + '（' + app.clock.total + ' 个周期）';
 }
 
 function setPace(value) {
@@ -303,13 +296,16 @@ function patchExport(key, value) {
   app.chart.cfg.export[key] = value;
 }
 
-/* ---------- 抽屉 ---------- */
-let drawerOpen = false;
-function openDrawer(open) {
-  drawerOpen = open;
-  document.body.toggleAttribute('data-drawer', open);
-  $('drawer').setAttribute('aria-hidden', String(!open));
-  if (open) syncDrawer();
+/* ---------- 两侧抽屉：设置走右，导入走左 ---------- */
+let panel = null;
+function setPanel(next) {
+  panel = next;
+  document.body.toggleAttribute('data-right', next === 'right');
+  document.body.toggleAttribute('data-left', next === 'left');
+  $('drawer').setAttribute('aria-hidden', String(next !== 'right'));
+  $('importDrawer').setAttribute('aria-hidden', String(next !== 'left'));
+  if (next === 'right') syncDrawer();
+  if (next === 'left') renderImportLists();
 }
 
 function renderEvents() {
@@ -381,11 +377,7 @@ function syncDrawer() {
   $('paletteSel').value = st.palette;
   $('gridChk').checked = st.showGrid;
   $('valueChk').checked = st.showValue;
-  const tn = $('topNSel');
-  if (![...tn.options].some(o => o.value === String(st.topN))) {
-    fill(tn, [...new Set([5, 8, 10, 12, 15, 20, 25, 30, st.topN])].sort((a, b) => a - b).map(n => [n, '前 ' + n]));
-  }
-  tn.value = String(st.topN);
+  setOptions($('topNSel'), TOPN_OPTS.map(n => [n, '前 ' + n]), st.topN);
   syncPace();
   $('designWSel').value = cfg.layout.design.width;
   $('designHSel').value = cfg.layout.design.height;
@@ -397,135 +389,54 @@ function syncDrawer() {
   $('exHSel').value = cfg.export.height;
   $('brSel').value = cfg.export.bitrateMbps;
   $('alphaSel').checked = cfg.export.transparent;
-  syncBgCombo();
+  syncBgSelect();
   renderEvents();
 }
 
-/* ---------- 画布背景下拉 ---------- */
-let bgOpen = false;
-let bgActive = 0;
+/* ---------- 画布背景 ---------- */
+const BG_PICK = '__pick';
 
-const bgIndex = () => BG_PRESETS.findIndex(p => p.color.toLowerCase() === app.chart.cfg.style.bg.toLowerCase());
-
-function buildBgCombo() {
-  const list = $('bgList');
-  BG_PRESETS.forEach(p => {
-    const row = el('div', 'combo-row');
-    row.setAttribute('role', 'option');
-    const chip = el('span', 'chip');
-    chip.style.background = p.color;
-    row.appendChild(chip);
-    row.appendChild(el('span', 'combo-name', p.label));
-    row.appendChild(el('span', 'combo-hex', p.color));
-    row.addEventListener('click', () => chooseBg(p.color));
-    list.appendChild(row);
-  });
-
-  const custom = el('div', 'combo-row');
-  custom.setAttribute('role', 'option');
-  const cChip = el('span', 'chip');
-  cChip.id = 'bgCustomChip';
-  custom.appendChild(cChip);
-  custom.appendChild(el('span', 'combo-name', '自定义'));
-  const cHex = el('span', 'combo-hex', '—');
-  cHex.id = 'bgCustomHex';
-  custom.appendChild(cHex);
-  custom.addEventListener('click', () => {
-    openBg(false);
-    $('bgCustom').click();
-  });
-  list.appendChild(custom);
-
-  $('bgBtn').addEventListener('click', () => openBg(!bgOpen));
-  $('bgBtn').addEventListener('keydown', e => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (!bgOpen) openBg(true);
-      else moveBg(e.key === 'ArrowDown' ? 1 : -1);
-    } else if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      if (bgOpen) commitBg();
-      else openBg(true);
-    } else if (e.key === 'Escape') {
-      openBg(false);
-      $('bgBtn').focus();
-    }
-  });
-  $('bgCustom').addEventListener('input', () => chooseBg($('bgCustom').value));
-  document.addEventListener('pointerdown', e => {
-    if (bgOpen && !$('bgCombo').contains(e.target)) openBg(false);
-  });
+function bgPairs() {
+  const bg = String(app.chart.cfg.style.bg);
+  const list = BG_PRESETS.map(p => [p.color, p.label, { color: p.color, note: p.color }]);
+  if (!BG_PRESETS.some(p => p.color.toLowerCase() === bg.toLowerCase())) {
+    list.push([bg, '当前颜色', { color: bg, note: bg.toUpperCase() }]);
+  }
+  list.push([BG_PICK, '从系统色板里挑…', null]);
+  return list;
 }
 
-function openBg(open) {
-  bgOpen = open;
-  $('bgList').hidden = !open;
-  $('bgBtn').setAttribute('aria-expanded', String(open));
-  if (!open) return;
-  const i = bgIndex();
-  bgActive = i < 0 ? BG_PRESETS.length : i;
-  markBgActive();
+function syncBgSelect() {
+  setOptions($('bgSel'), bgPairs(), app.chart.cfg.style.bg);
+  $('bgCustom').value = normalizeHex(app.chart.cfg.style.bg) || '#121311';
 }
 
-function moveBg(step) {
-  const n = BG_PRESETS.length + 1;
-  bgActive = (bgActive + step + n) % n;
-  markBgActive();
-}
-
-function markBgActive() {
-  [...$('bgList').children].forEach((row, i) => row.classList.toggle('active', i === bgActive));
-  const cur = $('bgList').children[bgActive];
-  if (cur) cur.scrollIntoView({ block: 'nearest' });
-}
-
-function commitBg() {
-  if (bgActive >= BG_PRESETS.length) {
-    openBg(false);
+function chooseBg(value) {
+  if (value === BG_PICK) {
     $('bgCustom').click();
     return;
   }
-  chooseBg(BG_PRESETS[bgActive].color);
+  patchStyle('bg', value);
+  syncBgSelect();
 }
-
-function chooseBg(color) {
-  patchStyle('bg', color);
-  syncBgCombo();
-  openBg(false);
-  $('bgBtn').focus();
-}
-
-function syncBgCombo() {
-  const bg = app.chart.cfg.style.bg;
-  const hex = normalizeHex(bg) || '#121311';
-  $('bgChip').style.background = bg;
-  $('bgText').textContent = bgLabel(bg);
-  $('bgCustom').value = hex;
-  $('bgCustomChip').style.background = hex;
-  $('bgCustomHex').textContent = bgIndex() < 0 ? hex : '—';
-  [...$('bgList').children].forEach((row, i) => {
-    row.setAttribute('aria-selected', String(i < BG_PRESETS.length && BG_PRESETS[i].color.toLowerCase() === bg.toLowerCase()));
-  });
-}
-
 /* ---------- 控件构建 ---------- */
 function buildControls() {
-  fill($('granSel'), GRANULARITIES.map(g => [g, GRAN_LABEL[g]]));
-  fill($('fontSel'), Object.keys(FONTS).map(k => [k, FONT_TEXT[k] || k]));
-  fill($('fontScaleSel'), FONT_SCALE_KEYS.map(k => [k, SCALE_TEXT[k] || k + '×']));
-  fill($('namePosSel'), POS_KEYS.map(k => [k, POS_TEXT[k]]));
-  fill($('rankPosSel'), POS_KEYS.map(k => [k, POS_TEXT[k]]));
-  fill($('valuePosSel'), VALUE_POS.map(k => [k, k === 'auto' ? '自动（放不下外移）' : POS_TEXT[k]]));
-  fill($('iconPosSel'), ICON_POS.map(k => [k, k === 'none' ? '不显示' : POS_TEXT[k]]));
-  fill($('barShapeSel'), BAR_SHAPES.map(k => [k, SHAPE_TEXT[k]]));
-  fill($('sortDirSel'), [['desc', '数值大在上'], ['asc', '数值小在上']]);
-  fill($('dateAnimSel'), DATE_ANIMS.map(k => [k, DATE_ANIM_TEXT[k]]));
-  fill($('paletteSel'), Object.keys(PALETTES).map(k => [k, PALETTES[k].label]));
-  fill($('fmtSel'), EXPORT_FORMATS.map(k => [k, FMT_TEXT[k]]));
-  fill($('fpsSel'), [[24, '24'], [30, '30'], [50, '50'], [60, '60']]);
-  fill($('topNSel'), [5, 8, 10, 12, 15, 20, 25, 30].map(n => [n, '前 ' + n]));
-
-  buildBgCombo();
+  setOptions($('granSel'), GRANULARITIES.map(g => [g, GRAN_LABEL[g]]));
+  setOptions($('fontSel'), Object.keys(FONTS).map(k => [k, FONT_TEXT[k] || k]));
+  setOptions($('fontScaleSel'), FONT_SCALE_KEYS.map(k => [k, SCALE_TEXT[k] || k + '×']));
+  setOptions($('namePosSel'), POS_KEYS.map(k => [k, POS_TEXT[k]]));
+  setOptions($('rankPosSel'), POS_KEYS.map(k => [k, POS_TEXT[k]]));
+  setOptions($('valuePosSel'), VALUE_POS.map(k => [k, k === 'auto' ? '自动（放不下外移）' : POS_TEXT[k]]));
+  setOptions($('iconPosSel'), ICON_POS.map(k => [k, k === 'none' ? '不显示' : POS_TEXT[k]]));
+  setOptions($('barShapeSel'), BAR_SHAPES.map(k => [k, SHAPE_TEXT[k]]));
+  setOptions($('sortDirSel'), [['desc', '数值大在上'], ['asc', '数值小在上']]);
+  setOptions($('dateAnimSel'), DATE_ANIMS.map(k => [k, DATE_ANIM_TEXT[k]]));
+  /* 配色方案用连排色条表示，比单色点更接近色样张的读法 */
+  setOptions($('paletteSel'),
+    Object.keys(PALETTES).map(k => [k, PALETTES[k].label, { colors: PALETTES[k].colors.slice(0, 6) }]));
+  setOptions($('fmtSel'), EXPORT_FORMATS.map(k => [k, FMT_TEXT[k]]));
+  setOptions($('fpsSel'), [[24, '24'], [30, '30'], [50, '50'], [60, '60']]);
+  setOptions($('topNSel'), TOPN_OPTS.map(n => [n, '前 ' + n]));
 
   const on = (id, fn) => $(id).addEventListener('change', e => fn(e.target));
   const text = (id, fn) => $(id).addEventListener('change', e => fn(e.target.value));
@@ -565,10 +476,17 @@ function buildControls() {
   on('exHSel', t => patchExport('height', num(t.value, 1080)));
   on('brSel', t => patchExport('bitrateMbps', num(t.value, 12)));
   on('alphaSel', t => patchExport('transparent', t.checked));
+  on('bgSel', t => chooseBg(t.value));
+  /* 取色器：input 实时改色；change 收尾，用户取消时把显示拉回真实背景 */
+  $('bgCustom').addEventListener('input', e => {
+    patchStyle('bg', e.target.value);
+    syncBgSelect();
+  });
+  $('bgCustom').addEventListener('change', syncBgSelect);
 
-  $('btnSettings').addEventListener('click', () => openDrawer(!drawerOpen));
-  $('btnDone').addEventListener('click', () => openDrawer(false));
-  $('scrim').addEventListener('click', () => openDrawer(false));
+  $('btnSettings').addEventListener('click', () => setPanel(panel === 'right' ? null : 'right'));
+  $('btnDone').addEventListener('click', () => setPanel(null));
+  $('scrim').addEventListener('click', () => setPanel(null));
   $('btnReset').addEventListener('click', () => {
     const cfg = app.chart.cfg;
     cfg.style = { ...DEFAULT_STYLE };
@@ -589,13 +507,61 @@ async function refreshDatasets() {
   const rows = await app.src.list();
   const names = rows.map(r => r.name);
   const all = [...names, ...app.session.keys()];
-  fill($('datasetSel'), all.map(n => [n, n]), app.dataset);
+  setOptions($('datasetSel'), all.map(n => [n, n]), app.dataset);
   const canWrite = app.src.kind === 'server';
   $('btnSave').textContent = canWrite ? '写回文件' : '下载配置';
   $('btnSave').title = canWrite
     ? '把当前配置（含页面上的调整）写回 config 里的同名文件'
     : '把当前配置下载成 JSON 文件';
+  app.dirNames = names;
+  renderImportLists();
   return all;
+}
+
+function rowItem(name, meta, actions) {
+  const row = el('div', 'row');
+  row.appendChild(el('span', 'row-name', name));
+  if (meta) row.appendChild(el('span', 'row-meta', meta));
+  row.appendChild(el('span', 'spacer'));
+  for (const [label, cls, fn] of actions) {
+    const b = el('button', 'btn sm' + (cls ? ' ' + cls : ''), label);
+    b.type = 'button';
+    b.addEventListener('click', fn);
+    row.appendChild(b);
+  }
+  return row;
+}
+
+/* 左侧抽屉的两张列表：会话导入的可以移除，config 目录的只读 */
+function renderImportLists() {
+  const sess = $('sessionList');
+  const dir = $('dirList');
+  sess.textContent = '';
+  dir.textContent = '';
+
+  const keys = [...app.session.keys()];
+  if (!keys.length) sess.appendChild(el('p', 'rows-empty', '还没有导入过文件'));
+  for (const k of keys) {
+    sess.appendChild(rowItem(k, '本次会话', [
+      [k === app.dataset ? '当前' : '载入', k === app.dataset ? 'key' : '', () => loadRaw(app.session.get(k), k, false)],
+      ['移除', '', () => {
+        app.session.delete(k);
+        refreshDatasets();
+      }],
+    ]));
+  }
+
+  if (app.src.kind === 'file') {
+    dir.appendChild(el('p', 'rows-empty', '本地页面读不到 config 目录，用上面的拖拽区'));
+    return;
+  }
+  const names = app.dirNames || [];
+  if (!names.length) dir.appendChild(el('p', 'rows-empty', 'config 目录里没有 JSON 文件'));
+  for (const n of names) {
+    dir.appendChild(rowItem(n, app.src.kind === 'server' ? '可写回' : '已内联进产物', [
+      [n === app.dataset ? '当前' : '载入', n === app.dataset ? 'key' : '', () => loadDataset(n)],
+    ]));
+  }
 }
 
 function readAsText(file) {
@@ -797,28 +763,46 @@ function wireTransport() {
   $('sheetClose').addEventListener('click', () => $('sheet').classList.add('hidden'));
   $('btnSave').addEventListener('click', saveConfig);
   $('btnSave2').addEventListener('click', saveConfig);
-  $('btnImport').addEventListener('click', () => $('fileInput').click());
+  $('btnImport').addEventListener('click', () => setPanel(panel === 'left' ? null : 'left'));
+  $('btnImportClose').addEventListener('click', () => setPanel(null));
+  $('btnPick').addEventListener('click', () => $('fileInput').click());
   $('fileInput').addEventListener('change', async e => {
     await importFiles([...e.target.files]);
     e.target.value = '';
   });
 
-  const stage = $('stage');
-  stage.addEventListener('dragover', e => {
-    e.preventDefault();
-    stage.classList.add('drop');
-  });
-  stage.addEventListener('dragleave', () => stage.classList.remove('drop'));
-  stage.addEventListener('drop', async e => {
-    e.preventDefault();
-    stage.classList.remove('drop');
-    const json = [...e.dataTransfer.files].filter(f => /\.json$/i.test(f.name));
-    if (json.length) await importFiles(json);
+  const dz = $('dropzone');
+  dz.addEventListener('click', () => $('fileInput').click());
+  dz.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      $('fileInput').click();
+    }
   });
 
+  /* 画布和拖拽区都能接文件，用户往哪丢都该成功 */
+  const targets = [$('stage'), dz];
+  for (const node of targets) {
+    node.addEventListener('dragover', e => {
+      e.preventDefault();
+      node.classList.add('is-drop');
+    });
+    node.addEventListener('dragleave', () => node.classList.remove('is-drop'));
+    node.addEventListener('drop', async e => {
+      e.preventDefault();
+      node.classList.remove('is-drop');
+      const json = [...e.dataTransfer.files].filter(f => /\.json$/i.test(f.name));
+      if (json.length) await importFiles(json);
+      else toast('只认 *.json 配置文件');
+    });
+  }
+
   window.addEventListener('keydown', e => {
-    const tag = (document.activeElement || {}).tagName;
-    if (['SELECT', 'INPUT', 'TEXTAREA'].includes(tag)) return;
+    const active = document.activeElement || {};
+    const tag = active.tagName;
+    /* 焦点在自定义下拉里时，空格/方向键归组件管，别同时触发播放 */
+    if (['INPUT', 'TEXTAREA'].includes(tag) || (active.closest && active.closest('.sel'))) return;
+    if (tag === 'BUTTON' && e.code === 'Space') return;
     if (e.code === 'Space') {
       e.preventDefault();
       togglePlay();
@@ -832,7 +816,7 @@ function wireTransport() {
       app.clock.t = Math.max(0, Math.min(app.clock.total, Math.round(app.clock.t) + step));
     } else if (e.key === 'Escape') {
       if (!$('sheet').classList.contains('hidden')) $('sheet').classList.add('hidden');
-      else if (drawerOpen) openDrawer(false);
+      else if (panel) setPanel(null);
     }
   });
 }

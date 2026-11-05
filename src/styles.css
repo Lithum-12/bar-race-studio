@@ -78,14 +78,18 @@ button, select, input, textarea { font: inherit; color: inherit }
 
 .spacer { flex: 1 1 auto }
 
-.field {
+.fld.inline {
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: 7px;
   color: var(--ink-2);
   font-size: 13px;
+  min-width: 0;
 }
-.field > b { font-weight: 500 }
+.fld.inline .lab { flex: none; color: var(--ink-2) }
+.fld.inline .sel { min-width: 132px }
+.fld.inline .sel-btn { min-height: 32px }
 
 select, input[type="number"], input[type="text"], input[type="month"] {
   background: var(--sunken);
@@ -344,23 +348,31 @@ body[data-busy] .rec { display: flex }
   transition: opacity .16s;
   z-index: 40;
 }
-body[data-drawer] .scrim { opacity: 1; pointer-events: auto }
+body[data-right] .scrim, body[data-left] .scrim { opacity: 1; pointer-events: auto }
 
 .drawer {
   position: fixed;
   top: 0;
-  right: 0;
   bottom: 0;
   width: min(468px, 94vw);
   background: var(--panel);
-  border-left: 1px solid var(--rule-2);
-  transform: translateX(101%);
   transition: transform .18s ease-out;
   z-index: 41;
   display: flex;
   flex-direction: column;
 }
-body[data-drawer] .drawer { transform: none }
+/* 设置走右、导入走左，两边都是单层边框，不加投影 */
+.drawer.right {
+  right: 0;
+  border-left: 1px solid var(--rule-2);
+  transform: translateX(101%);
+}
+.drawer.left {
+  left: 0;
+  border-right: 1px solid var(--rule-2);
+  transform: translateX(-101%);
+}
+body[data-right] .drawer.right, body[data-left] .drawer.left { transform: none }
 
 .drawer header {
   display: flex;
@@ -399,50 +411,21 @@ a.ctl { color: var(--ink); text-decoration: none }
   height: 1px;
   background: var(--rule);
 }
-/* align-items:start：每个标签只占自身高度。默认的 stretch 会让同列里更高的
-   控件把本标签拉伸，而箭头是按标签底边定位的，一拉伸就掉到框外面。 */
+/* align-items:start：默认的 stretch 会让同列里更高的控件把矮的拉伸，
+   字段高度就不一致了。 */
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; align-items: start }
-.grid2 label {
-  position: relative;
+.grid2 label, .grid2 .fld {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 12px;
   color: var(--ink-2);
+  min-width: 0;
 }
 .grid2 select, .grid2 input { width: 100%; min-height: 34px }
-
-/* 自绘下拉箭头。用伪元素而不是背景图：背景图里的颜色跟着不了明暗切换 */
-@supports selector(:has(*)) {
-  .drawer select {
-    appearance: none;
-    -webkit-appearance: none;
-    padding-right: 28px;
-  }
-  .drawer label:has(select)::after {
-    content: "";
-    position: absolute;
-    right: 12px;
-    bottom: 15px;
-    width: 5px;
-    height: 5px;
-    border-right: 1.5px solid var(--ink-3);
-    border-bottom: 1.5px solid var(--ink-3);
-    transform: rotate(45deg);
-    pointer-events: none;
-  }
-}
-
-/* 画布背景下拉：每行「色块 + 名称 + 十六进制」 */
-.combo {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--ink-2);
-}
-.combo-btn {
+/* ---------- 自定义下拉 ---------- */
+.sel { position: relative; min-width: 0 }
+.sel-btn {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -452,56 +435,68 @@ a.ctl { color: var(--ink); text-decoration: none }
   background: var(--sunken);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
-  cursor: pointer;
   color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .14s, background .14s;
 }
-.combo-btn:hover { border-color: var(--rule-2) }
-.combo-btn .caret { margin-left: auto; color: var(--ink-3) }
-.chip {
+.sel-btn:hover { border-color: var(--rule-2) }
+.sel.is-open .sel-btn { border-color: var(--ink-2) }
+.sel-btn .sel-caret { flex: none; margin-left: auto; color: var(--ink-3); transition: transform .14s }
+.sel.is-open .sel-btn .sel-caret { transform: rotate(180deg) }
+
+.sel-face, .sel-row { display: flex; align-items: center; gap: 8px; min-width: 0 }
+.sel-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.sel-chip {
   flex: none;
   width: 14px;
   height: 14px;
   border: 1px solid var(--rule-2);
   border-radius: 1px;
-  background: transparent;
 }
-.combo-list {
+/* 没有色样的候选也要占位，否则同列文字左边缘参差不齐 */
+.sel-chip.is-empty { background: transparent; border-color: transparent }
+/* 配色方案用连排色条，读法和印刷色样张一致，比单色点信息量大 */
+.sel-strip { display: flex; flex: none }
+.sel-strip i { width: 7px; height: 14px; border: 1px solid var(--rule-2); border-left: 0 }
+.sel-strip i:first-child { border-left: 1px solid var(--rule-2) }
+.sel-note { margin-left: auto; font: 400 11px/1 var(--mono); color: var(--ink-3) }
+
+.sel-list {
   position: absolute;
-  z-index: 6;
+  z-index: 12;
   left: 0;
   right: 0;
-  top: calc(100% + 4px);
-  display: flex;
-  flex-direction: column;
-  max-height: 232px;
+  top: calc(100% + 3px);
+  max-height: 236px;
   overflow: auto;
   padding: 3px;
   background: var(--panel);
   border: 1px solid var(--rule-2);
   border-radius: var(--radius);
+  animation: reveal .12s ease-out;
 }
 /* display:flex 会盖掉 hidden 属性，必须显式收回 */
-.combo-list[hidden] { display: none }
-.combo-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 7px;
+.sel-list[hidden] { display: none }
+@keyframes reveal { from { opacity: 0; transform: translateY(-2px) } to { opacity: 1 } }
+
+.sel-row {
+  padding: 6px 7px;
+  border-left: 2px solid transparent;
   border-radius: 1px;
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--ink);
 }
-.combo-row:hover, .combo-row.active { background: var(--sunken) }
-.combo-row[aria-selected="true"] { background: var(--accent-soft) }
-.combo-row[aria-selected="true"] .chip { border-color: var(--accent) }
-.combo-hex {
-  margin-left: auto;
-  font: 400 11px/1 var(--mono);
-  color: var(--ink-3);
-}
-/* 原生取色器只要能被程序点开，不参与布局 */
-.combo-picker {
+.sel-row:hover { background: var(--sunken) }
+/* 键盘当前项用左侧砖红细条标记，不做整行胶囊高亮 */
+.sel-row.is-active { border-left-color: var(--accent); padding-left: 5px; background: var(--sunken) }
+.sel-row[aria-selected="true"] { background: var(--accent-soft) }
+.sel-row[aria-selected="true"] .sel-chip,
+.sel-row[aria-selected="true"] .sel-strip i { border-color: var(--accent) }
+
+/* 原生取色器只给程序点开，不参与布局 */
+.picker {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -610,7 +605,53 @@ a.ctl { color: var(--ink); text-decoration: none }
 body[data-busy] .transport { opacity: .45; pointer-events: none }
 body[data-busy] .stage { cursor: progress }
 
-.drop { outline: 2px dashed var(--accent); outline-offset: -3px }
+/* ---------- 导入面板 ---------- */
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 26px 18px;
+  border: 1px dashed var(--rule-2);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink-2);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .14s, background .14s;
+}
+.drop:hover { border-color: var(--ink-3) }
+.drop.is-drop { border-color: var(--accent); border-style: solid; background: var(--accent-soft); color: var(--ink) }
+.dz-main { margin: 0; font-size: 14px; color: var(--ink) }
+.dz-sub { margin: 0; font-size: 12px; line-height: 1.7; color: var(--ink-3); max-width: 42ch }
+.drop code {
+  font: 400 11.5px/1.5 var(--mono);
+  background: var(--sunken);
+  border: 1px solid var(--rule);
+  padding: 0 4px;
+  border-radius: var(--radius);
+}
+.stage.is-drop { outline: 2px dashed var(--accent); outline-offset: -6px }
+
+.rows { display: flex; flex-direction: column }
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 12.5px;
+}
+.row:last-child { border-bottom: 0 }
+.row-name { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.row-meta { flex: none; font: 400 11px/1 var(--mono); color: var(--ink-3) }
+.rows-empty { margin: 0; padding: 7px 0; font-size: 12.5px; color: var(--ink-3) }
+.btn.sm { min-height: 26px; padding: 3px 10px; font-size: 12.5px }
+
+/* 时间轴：悬停时轨道和游标都变粗一点，明确"这里可以拖" */
+.track .rail, .track .head, .track .fill { transition: height .12s, top .12s }
+.track:hover .rail, .track:focus-visible .rail { height: 5px; top: 13px }
+.track:hover .head, .track:focus-visible .head { height: 19px; top: 5px }
 
 .hidden { display: none !important }
 
@@ -619,9 +660,12 @@ body[data-busy] .stage { cursor: progress }
   .grid2 { grid-template-columns: 1fr }
   .transport { gap: 10px }
   .app { border-left: 0; border-right: 0 }
+  .fld.inline .sel { min-width: 108px }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .rec i { animation: none }
-  .drawer, .scrim, #toast { transition: none }
+  .sel-list { animation: none }
+  .drawer, .scrim, #toast, .sel-btn, .drop, .track .rail, .track .head, .track .fill { transition: none }
+  .sel.is-open .sel-btn .sel-caret { transform: none }
 }

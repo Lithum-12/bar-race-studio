@@ -12,11 +12,11 @@
   <header class="bar">
     <div class="brand">条形动画工作台</div>
 
-    <label class="field">
-      <b>数据集</b>
-      <select id="datasetSel" title="切换 config 目录下的数据集"></select>
-    </label>
-    <button class="btn" id="btnImport" title="从本地选择 JSON 配置">
+    <div class="fld inline">
+      <span class="lab">数据集</span>
+      <div class="sel" id="datasetSel"></div>
+    </div>
+    <button class="btn" id="btnImport" title="打开导入面板">
       <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
         <path d="M12 3v9m0 0 3.4-3.4M12 12 8.6 8.6M4 15v4h16v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -75,7 +75,10 @@
 
     <div class="readout" id="readout">—</div>
 
-    <label class="field"><b>节奏</b><select id="paceSel" title="每个周期停留几秒，决定整体快慢"></select></label>
+    <div class="fld inline">
+      <span class="lab">节奏</span>
+      <div class="sel" id="paceSel"></div>
+    </div>
     <span class="estimate" id="paceEstimate" title="周期数 × 每周期秒数">—</span>
     <label class="toggle"><input type="checkbox" id="loopChk" /><span>循环</span></label>
     <button class="btn" id="btnStill" title="把当前这一帧存成 PNG">存当前帧</button>
@@ -86,7 +89,39 @@
 
 <div class="scrim" id="scrim"></div>
 
-<aside class="drawer" id="drawer" aria-label="显示设置" aria-hidden="true">
+<aside class="drawer left" id="importDrawer" aria-label="导入配置" aria-hidden="true">
+  <header>
+    <span>导入配置</span>
+    <div class="spacer"></div>
+    <button class="btn" id="btnPick">选择文件</button>
+  </header>
+  <div class="body">
+    <div class="drop" id="dropzone" tabindex="0" role="button" aria-label="把 JSON 配置文件拖到这里，或按回车选择文件">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path d="M12 16V4m0 0L7.6 8.4M12 4l4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4 15v4h16v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+      </svg>
+      <p class="dz-main">把 <code>*.json</code> 拖到这里</p>
+      <p class="dz-sub">也可以按回车，或点上面的「选择文件」。一次能拖多个，它们会出现在下面「本次会话导入」里。</p>
+    </div>
+
+    <div class="group">
+      <h4>本次会话导入</h4>
+      <div class="rows" id="sessionList"></div>
+    </div>
+
+    <div class="group">
+      <h4>config 目录</h4>
+      <div class="rows" id="dirList"></div>
+    </div>
+  </div>
+  <footer>
+    <div class="spacer"></div>
+    <button class="btn key" id="btnImportClose">关闭</button>
+  </footer>
+</aside>
+
+<aside class="drawer right" id="drawer" aria-label="显示设置" aria-hidden="true">
   <header>
     <span>显示设置</span>
     <div class="spacer"></div>
@@ -96,7 +131,7 @@
     <div class="group">
       <h4>时间</h4>
       <div class="grid2">
-        <label>粒度<select id="granSel"></select></label>
+        <div class="fld"><span class="lab">粒度</span><div class="sel" id="granSel"></div></div>
         <label>起始周期<input type="text" id="startInp" spellcheck="false" /></label>
         <label>数值小数位<input type="number" id="decSel" min="0" max="4" step="1" /></label>
         <label>单位<input type="text" id="unitInp" placeholder="例如 万辆" /></label>
@@ -106,7 +141,7 @@
     <div class="group">
       <h4>播放</h4>
       <div class="grid2">
-        <label>显示条数<select id="topNSel"></select></label>
+        <div class="fld"><span class="lab">显示条数</span><div class="sel" id="topNSel"></div></div>
         <label>每周期秒数<input type="number" id="paceInp" min="0.15" max="8" step="0.05" /></label>
       </div>
       <div class="estimate-row">
@@ -119,15 +154,15 @@
     <div class="group">
       <h4>排版</h4>
       <div class="grid2">
-        <label>字体<select id="fontSel"></select></label>
-        <label>字号<select id="fontScaleSel"></select></label>
-        <label>名称位置<select id="namePosSel"></select></label>
-        <label>排名位置<select id="rankPosSel"></select></label>
-        <label>数值位置<select id="valuePosSel"></select></label>
-        <label>品牌图标<select id="iconPosSel"></select></label>
-        <label>条形形状<select id="barShapeSel"></select></label>
-        <label>排序<select id="sortDirSel"></select></label>
-        <label>日期切换<select id="dateAnimSel"></select></label>
+        <div class="fld"><span class="lab">字体</span><div class="sel" id="fontSel"></div></div>
+        <div class="fld"><span class="lab">字号</span><div class="sel" id="fontScaleSel"></div></div>
+        <div class="fld"><span class="lab">名称位置</span><div class="sel" id="namePosSel"></div></div>
+        <div class="fld"><span class="lab">排名位置</span><div class="sel" id="rankPosSel"></div></div>
+        <div class="fld"><span class="lab">数值位置</span><div class="sel" id="valuePosSel"></div></div>
+        <div class="fld"><span class="lab">品牌图标</span><div class="sel" id="iconPosSel"></div></div>
+        <div class="fld"><span class="lab">条形形状</span><div class="sel" id="barShapeSel"></div></div>
+        <div class="fld"><span class="lab">排序</span><div class="sel" id="sortDirSel"></div></div>
+        <div class="fld"><span class="lab">日期切换</span><div class="sel" id="dateAnimSel"></div></div>
       </div>
       <div class="switches">
         <label class="toggle"><input type="checkbox" id="gridChk" /><span>显示网格刻度</span></label>
@@ -138,20 +173,10 @@
     <div class="group">
       <h4>颜色</h4>
       <div class="grid2">
-        <label>配色方案<select id="paletteSel"></select></label>
-        <div class="combo" id="bgCombo">
-          <span>画布背景</span>
-          <button type="button" class="combo-btn" id="bgBtn" aria-haspopup="listbox" aria-expanded="false">
-            <span class="chip" id="bgChip"></span>
-            <span id="bgText">—</span>
-            <svg class="caret" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-              <path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-            </svg>
-          </button>
-          <div class="combo-list" id="bgList" role="listbox" aria-label="画布背景" hidden></div>
-          <input type="color" id="bgCustom" class="combo-picker" aria-label="自定义背景色" />
-        </div>
+        <div class="fld"><span class="lab">配色方案</span><div class="sel" id="paletteSel"></div></div>
+        <div class="fld"><span class="lab">画布背景</span><div class="sel" id="bgSel"></div></div>
       </div>
+      <input type="color" id="bgCustom" class="picker" aria-label="自定义背景色" />
     </div>
 
     <div class="group">
@@ -168,8 +193,8 @@
     <div class="group">
       <h4>导出</h4>
       <div class="grid2">
-        <label>格式<select id="fmtSel"></select></label>
-        <label>帧率<select id="fpsSel"></select></label>
+        <div class="fld"><span class="lab">格式</span><div class="sel" id="fmtSel"></div></div>
+        <div class="fld"><span class="lab">帧率</span><div class="sel" id="fpsSel"></div></div>
         <label>宽<input type="number" id="exWSel" min="320" max="3840" step="10" /></label>
         <label>高<input type="number" id="exHSel" min="240" max="2160" step="10" /></label>
         <label>码率 Mbps<input type="number" id="brSel" min="1" max="80" step="1" /></label>
@@ -207,7 +232,7 @@
         </div>
         <div>
           <dt>实时看效果</dt>
-          <dd><code>node tools/serve.mjs</code> 开 <code>localhost:5278</code>，存盘即重读并校验，报错列在画布下方。不想开服务器就 <code>node tools/build.mjs</code> 生成 <code>dist/index.html</code>，双击可跑，配置靠「导入配置」或把 JSON 拖到画布上——浏览器不允许本地页面自动读同目录文件。<code>node tools/check.mjs</code> 是无头渲染校验。</dd>
+          <dd><code>node tools/serve.mjs</code> 开 <code>localhost:5278</code>，存盘即重读并校验，报错列在画布下方。不想开服务器就 <code>node tools/build.mjs</code> 生成 <code>dist/index.html</code>，双击可跑，配置靠左侧「导入配置」——浏览器不允许本地页面自动读同目录文件。<code>node tools/check.mjs</code> 是无头渲染校验。</dd>
         </div>
         <div>
           <dt>导出</dt>

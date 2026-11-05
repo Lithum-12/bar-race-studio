@@ -107,8 +107,3 @@ export const BG_PRESETS = [
   { color: '#FFFFFF', label: '亮白' },
   { color: '#EDE6D6', label: '米黄' },
 ];
-
-export function bgLabel(hex) {
-  const hit = BG_PRESETS.find(p => p.color.toLowerCase() === String(hex).toLowerCase());
-  return hit ? hit.label : String(hex).toUpperCase();
-}
