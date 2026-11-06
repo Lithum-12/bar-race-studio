@@ -4,8 +4,8 @@
 
 ![八个条目在四个时刻之间连续改变长度和纵向位次，排名、数值、月份和大事件同步切换](assets/banner.svg)
 
-线上版：<https://lithum-12.github.io/bar-race-studio/>
-需要桌面版 Chrome 或 Edge 才能导出视频；不支持 webm 编码的浏览器会退到 mp4。
+免费使用：<https://lithum-12.github.io/bar-race-studio/>
+需要**桌面版** Chrome 或 Edge 才能导出视频；不支持 webm 编码的浏览器会退到 mp4。
 
 ## 换数据
 
@@ -92,13 +92,6 @@ tools/          构建、服务、校验、banner 生成
 
 顶部的 banner 不是手画的：`tools/banner.mjs` 用一套桩 2D context 跑真实的 `render.js`，把四个时刻的绘制指令翻译成 SVG（位次走 `translateY`、长度走 `scaleX`、数值标签跟着条尾平移并按时刻换字）。改了 UI 或数据重跑一次，图就跟着变——手画的 banner 迟早会和程序对不上。
 
-## 已知的坑
-
-- 页面切到后台标签时浏览器会节流 `requestAnimationFrame` 和定时器，导出会被拖成好几倍时长。保持标签在前台。
-- 条外空间不够时，摆放引擎按「名称 > 数值 > 图标 > 排名」挤压而不是按阅读顺序尾部丢弃——所以极端窄画布下你可能看到只剩名称。
-- 中途有 `null` 又再次出现数值，会被当成退出后重新登场，页面会给一条提醒。
-- GitHub Pages 有约 10 分钟缓存，推完看到旧版是正常现象。
-
 ## 许可
 
-MIT，见 `LICENSE`。示例数据（`config/*.json` 里的品牌名和数值）是编的，只用来演示效果。
+MIT。示例数据里的品牌名和数值是编的，只用来演示效果。
