@@ -72,8 +72,34 @@ function toggle(st, open) {
   if (!open) { st.btn.focus(); return; }
   st.active = Math.max(0, st.pairs.findIndex(p => String(p[0]) === st.value));
   paintActive(st);
+  place(st);
   const row = st.list.children[st.active];
   if (row) row.scrollIntoView({ block: 'nearest' });
+}
+
+/* 下方放不下就朝上开：向下展开会把文档顶高，首页底部那条下拉一开整页都往下跳。
+   可用空间要按最近的滚动容器算——抽屉里的 .body 是 overflow:auto，
+   列表超出它会被裁掉（画布背景那排色板就是这么跑出窗口的），跟 innerHeight 比不够。 */
+function scrollport(el) {
+  for (let n = el.parentElement; n; n = n.parentElement) {
+    const o = getComputedStyle(n).overflowY;
+    if (o === 'auto' || o === 'scroll' || o === 'hidden') {
+      const r = n.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom };
+    }
+  }
+  return { top: 0, bottom: innerHeight };
+}
+
+function place(st) {
+  const box = scrollport(st.list);
+  const r = st.btn.getBoundingClientRect();
+  const below = box.bottom - r.bottom;
+  const above = r.top - box.top;
+  const up = st.list.offsetHeight > below && above > below;
+  st.host.classList.toggle('is-up', up);
+  /* 一侧装不下完整列表就收到那一侧放得下的高度，多出来的行用列表自己的滚动 */
+  st.list.style.maxHeight = Math.max(90, Math.min(232, (up ? above : below) - 8)) + 'px';
 }
 
 function pick(st, i) {

@@ -89,7 +89,6 @@ button, select, input, textarea { font: inherit; color: inherit }
 }
 .fld.inline .lab { flex: none; color: var(--ink-2) }
 .fld.inline .sel { min-width: 132px }
-.fld.inline .sel-btn { min-height: 32px }
 
 select, input[type="number"], input[type="text"], input[type="month"] {
   background: var(--sunken);
@@ -421,6 +420,7 @@ a.ctl { color: var(--ink); text-decoration: none }
   font-size: 12px;
   color: var(--ink-2);
   min-width: 0;
+  position: relative;
 }
 .grid2 select, .grid2 input { width: 100%; min-height: 34px }
 /* ---------- 自定义下拉 ---------- */
@@ -430,19 +430,19 @@ a.ctl { color: var(--ink); text-decoration: none }
   align-items: center;
   gap: 8px;
   width: 100%;
-  min-height: 34px;
-  padding: 6px 9px;
+  min-height: 32px;
+  padding: 6px 8px;
   background: var(--sunken);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
-  color: var(--ink);
+  color: var(--ink-2);
+  font-size: 13px;
   text-align: left;
   cursor: pointer;
   transition: border-color .14s, background .14s;
 }
 .sel-btn:hover { border-color: var(--rule-2) }
-.sel.is-open .sel-btn { border-color: var(--ink-2) }
-.sel-btn .sel-caret { flex: none; margin-left: auto; color: var(--ink-3); transition: transform .14s }
+.sel-btn .sel-caret { flex: none; margin-left: auto; color: var(--ink-3) }
 .sel.is-open .sel-btn .sel-caret { transform: rotate(180deg) }
 
 .sel-face, .sel-row { display: flex; align-items: center; gap: 8px; min-width: 0 }
@@ -467,37 +467,41 @@ a.ctl { color: var(--ink); text-decoration: none }
   z-index: 12;
   left: 0;
   right: 0;
-  top: calc(100% + 3px);
-  max-height: 236px;
+  top: calc(100% + 4px);
+  max-height: 232px;
   overflow: auto;
   padding: 3px;
   background: var(--panel);
   border: 1px solid var(--rule-2);
   border-radius: var(--radius);
-  animation: reveal .12s ease-out;
 }
 /* display:flex 会盖掉 hidden 属性，必须显式收回 */
 .sel-list[hidden] { display: none }
-@keyframes reveal { from { opacity: 0; transform: translateY(-2px) } to { opacity: 1 } }
+/* 靠近视口底边时朝上展开 */
+.sel.is-up .sel-list { top: auto; bottom: calc(100% + 4px) }
 
 .sel-row {
-  padding: 6px 7px;
-  border-left: 2px solid transparent;
+  padding: 5px 7px;
   border-radius: 1px;
   cursor: pointer;
-  font-size: 13px;
-  color: var(--ink);
+  font-size: 12.5px;
+  color: var(--ink-2);
 }
-.sel-row:hover { background: var(--sunken) }
-/* 键盘当前项用左侧砖红细条标记，不做整行胶囊高亮 */
-.sel-row.is-active { border-left-color: var(--accent); padding-left: 5px; background: var(--sunken) }
+/* 悬停和键盘光标同一档底色：以前那版就是这样，分成两档反而脏 */
+.sel-row:hover, .sel-row.is-active { background: var(--sunken) }
+.sel-row[aria-selected="true"] { background: var(--accent-soft) }
 .sel-row[aria-selected="true"] { background: var(--accent-soft) }
 .sel-row[aria-selected="true"] .sel-chip,
 .sel-row[aria-selected="true"] .sel-strip i { border-color: var(--accent) }
 
-/* 原生取色器只给程序点开，不参与布局 */
-.picker {
+/* 原生取色器只给程序点开，不参与布局。
+   系统取色框贴着 input 的位置画，所以把它按在触发器里：
+   留在 group 末尾时弹框会出现在窗口底边，够不着。
+   选择器要多一级，否则 .grid2 input 的 width:100% 会盖掉这里的 1px。 */
+.picker, .grid2 .fld .picker {
   position: absolute;
+  top: calc(100% - 8px);
+  left: 10px;
   width: 1px;
   height: 1px;
   padding: 0;
@@ -631,6 +635,22 @@ body[data-busy] .stage { cursor: progress }
   padding: 0 4px;
   border-radius: var(--radius);
 }
+
+/* 粘贴框用等宽：从表格复制过来的制表符只有等宽才看得出列有没有对错 */
+.paste {
+  width: 100%;
+  padding: 7px 9px;
+  background: var(--sunken);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font: 400 12px/1.6 var(--mono);
+  resize: vertical;
+  outline: none;
+}
+.paste::placeholder { color: var(--ink-3) }
+.paste-bar { display: flex; align-items: center; gap: 10px; margin-top: 8px }
+.paste-note { font-size: 12px; line-height: 1.5; color: var(--ink-3) }
 .stage.is-drop { outline: 2px dashed var(--accent); outline-offset: -6px }
 
 .rows { display: flex; flex-direction: column }
@@ -665,7 +685,5 @@ body[data-busy] .stage { cursor: progress }
 
 @media (prefers-reduced-motion: reduce) {
   .rec i { animation: none }
-  .sel-list { animation: none }
   .drawer, .scrim, #toast, .sel-btn, .drop, .track .rail, .track .head, .track .fill { transition: none }
-  .sel.is-open .sel-btn .sel-caret { transform: none }
 }

@@ -46,30 +46,23 @@ export function buildChart(cfg) {
   return chart;
 }
 
-/* 各条目长度对齐：短的按最后一个值续，与旧实现一致，差值由校验器提前报成 warning */
+/* 数组写短就等于「从这里开始没有数据」，按 null 补，和尾部手写 null 同义。
+   续最后一个值会让本该退出的品牌永远停在原位，还会在后期重新挤进前十。 */
 export function padSeries(chart) {
   const maxLen = chart.items.reduce((m, it) => Math.max(m, it.values.length), 0);
   chart.total = Math.max(1, maxLen - 1);
   for (const it of chart.items) {
-    while (it.values.length < maxLen) {
-      it.values.push(it.values.length ? it.values[it.values.length - 1] : 0);
-    }
+    while (it.values.length < maxLen) it.values.push(null);
   }
 }
 
 export function applyPalette(chart) {
   const palette = PALETTES[chart.cfg.style.palette] || PALETTES.jewel;
   chart.items.forEach((it, i) => {
-    if (it.pinnedColor) {
-      chart.icons.request(i, it.iconRaw);
-      return;
-    }
-    it.color = palette.colors[i % palette.colors.length];
-    if (it.autoEmblem) {
-      chart.icons.request(i, emblemSVG(it.color, GLYPHS[i % GLYPHS.length]));
-    } else {
-      chart.icons.request(i, it.iconRaw);
-    }
+    if (!it.pinnedColor) it.color = palette.colors[i % palette.colors.length];
+    /* 没给 icon 就按品牌色生成圆牌徽标——指定了颜色也该有，不能因此丢掉图标 */
+    if (it.autoEmblem) chart.icons.request(i, emblemSVG(it.color, GLYPHS[i % GLYPHS.length]));
+    else chart.icons.request(i, it.iconRaw);
   });
 }
 
@@ -95,7 +88,9 @@ export function refreshValues(chart, t) {
 
 export function rankItems(chart) {
   const asc = chart.cfg.style.sortDir === 'asc';
-  const present = chart.items.filter(it => it.v != null);
+  /* 退场中的条目不占名次：否则它一淡出，原处留下一个空洞，下面的条要等下个周期才补上。
+     这里不重写它的 rank，淡出时显示的还是离开前那个名次 */
+  const present = chart.items.filter(it => it.v != null && !it.exiting);
   present.sort((a, b) => (asc ? a.v - b.v : b.v - a.v));
   present.forEach((it, ri) => { it.rank = ri; });
   const tail = chart.cfg.style.topN + 5;

@@ -110,7 +110,23 @@ export function normalizeConfig(raw) {
   mergeInto(out.style, raw.style);
   mergeInto(out.layout, raw.layout);
   mergeInto(out.export, raw.export);
+  if (isPlainObject(raw.brands)) applyBrands(out, raw.brands);
   return out;
+}
+
+/* 按品牌名挂观感：CSV 出数据、JSON 出颜色和 logo，靠名字对上。
+   只替换匹配到的条目并生成新对象，不原地改用户给的那个数组 */
+export function applyBrands(cfg, brands) {
+  if (!isPlainObject(brands) || !Array.isArray(cfg.series)) return cfg;
+  cfg.series = cfg.series.map(s => {
+    const b = isPlainObject(brands[s && s.name]) ? brands[s.name] : null;
+    if (!b) return s;
+    const next = { ...s };
+    if (typeof b.color === 'string' && b.color.trim()) next.color = b.color.trim();
+    if (typeof b.icon === 'string' && b.icon.trim()) next.icon = b.icon.trim();
+    return next;
+  });
+  return cfg;
 }
 
 const oneOf = list => list.join(' / ');
@@ -225,7 +241,7 @@ export function validateConfig(raw) {
       warnings.push({
         path: 'series[' + i + '].values',
         message: '「' + s.name + '」长度 ' + s.values.length + '，与最长的 ' + longest
-          + ' 不一致，末尾按最后一个值补齐',
+          + ' 不一致，多出来的周期按无数据处理（该品牌会退出榜单）',
       });
     }
   });
@@ -251,6 +267,63 @@ export function validateConfig(raw) {
     });
   }
 
+  checkLook(cfg, raw, errors, warnings);
+
+  /* brands 是「按名字挂观感」的覆盖表：名字对不上就等于没生效，得说清楚 */
+  if (isPlainObject(raw.brands)) {
+    const names = new Set((Array.isArray(raw.series) ? raw.series : []).map(s => s && s.name));
+    for (const [nm, b] of Object.entries(raw.brands)) {
+      const path = 'brands.' + nm;
+      if (!isPlainObject(b)) {
+        errors.push({ path, message: '每条品牌覆盖必须是 { color, icon } 对象' });
+        continue;
+      }
+      if (b.color !== undefined && !normalizeHex(b.color)) {
+        errors.push({ path: path + '.color', message: 'color 需要 #RGB 或 #RRGGBB，当前是 ' + JSON.stringify(b.color) });
+      }
+      if (b.icon !== undefined && typeof b.icon !== 'string') {
+        errors.push({ path: path + '.icon', message: 'icon 需要内联 SVG 字符串或图片地址' });
+      }
+      if (Array.isArray(raw.series) && !names.has(nm)) {
+        warnings.push({ path, message: '当前数据里没有叫「' + nm + '」的条目，这条覆盖没生效' });
+      }
+    }
+  }
+
+  const KNOWN = {
+    root: ['$schema', 'meta', 'title', 'subtitle', 'unit', 'time', 'series', 'events', 'brands', 'style', 'layout', 'export'],
+    time: ['granularity', 'start', 'decimals'],
+    entry: ['name', 'values', 'color', 'icon', 'group'],
+  };
+  unknownFields(raw, KNOWN.root, 'root', cfg, warnings);
+  unknownFields(raw.time, KNOWN.time, 'time', cfg, warnings);
+  if (Array.isArray(raw.series)) {
+    raw.series.forEach((s, i) => unknownFields(s, KNOWN.entry, 'series[' + i + ']', cfg, warnings));
+  }
+
+  return { errors, warnings, cfg };
+}
+
+/* 不认识的字段一律提醒，但 style.unit 是历史位置，单独给一条迁移话 */
+function unknownFields(obj, list, at, cfg, warnings) {
+  if (!isPlainObject(obj)) return;
+  for (const k of Object.keys(obj)) {
+    if (list.includes(k)) continue;
+    if (at === 'style' && k === 'unit') {
+      warnings.push({ path: 'style.unit', message: 'unit 已移到顶层，请写成 "unit": "' + cfg.unit + '"' });
+      continue;
+    }
+    warnings.push({ path: at === 'root' ? k : at + '.' + k, message: '不认识的字段，已忽略' });
+  }
+}
+
+/* 观感部分的校验：完整配置和样式模板共用这一段，免得两处规则漂开 */
+function checkLook(cfg, raw, errors, warnings) {
+  const LOOK = {
+    style: Object.keys(DEFAULT_STYLE),
+    layout: Object.keys(DEFAULT_LAYOUT),
+    export: Object.keys(DEFAULT_EXPORT),
+  };
   const st = cfg.style;
   if (!FONTS[st.font]) errors.push({ path: 'style.font', message: 'font 只能是 ' + oneOf(Object.keys(FONTS)) });
   pickNumber(errors, 'style.fontScale', st.fontScale, { min: 0.6, max: 1.6, label: '字号缩放' });
@@ -289,33 +362,81 @@ export function validateConfig(raw) {
   pickNumber(errors, 'export.fps', ex.fps, { min: 10, max: 120, integer: true, label: '导出帧率' });
   pickNumber(errors, 'export.bitrateMbps', ex.bitrateMbps, { min: 1, max: 80, label: '导出码率' });
 
-  const KNOWN = {
-    root: ['$schema', 'meta', 'title', 'subtitle', 'unit', 'time', 'series', 'events', 'style', 'layout', 'export'],
-    time: ['granularity', 'start', 'decimals'],
-    style: Object.keys(DEFAULT_STYLE),
-    layout: Object.keys(DEFAULT_LAYOUT),
-    export: Object.keys(DEFAULT_EXPORT),
-    entry: ['name', 'values', 'color', 'icon', 'group'],
+  unknownFields(raw.style, LOOK.style, 'style', cfg, warnings);
+  unknownFields(raw.layout, LOOK.layout, 'layout', cfg, warnings);
+  unknownFields(raw.export, LOOK.export, 'export', cfg, warnings);
+}
+
+/* 从原始 JSON 里只摘观感字段：模板没写的键保持 undefined，
+   这样套用时不会用默认值把用户当前调好的东西顶掉 */
+export function lookOf(raw) {
+  const look = {};
+  if (!isPlainObject(raw)) return look;
+  if (isPlainObject(raw.style)) look.style = { ...raw.style };
+  if (isPlainObject(raw.layout)) { look.layout = {}; mergeInto(look.layout, raw.layout); }
+  if (isPlainObject(raw.export)) look.export = { ...raw.export };
+  if (raw.unit !== undefined) look.unit = String(raw.unit);
+  if (raw.title !== undefined) look.title = String(raw.title);
+  if (raw.subtitle !== undefined) look.subtitle = String(raw.subtitle);
+  if (isPlainObject(raw.time) && raw.time.decimals !== undefined) look.decimals = raw.time.decimals;
+  /* 大事件和品牌覆盖都是「标注」而不是测量值，所以模板可以带；series 是数据，模板不许带 */
+  if (Array.isArray(raw.events)) look.events = raw.events.map(e => (isPlainObject(e) ? { ...e } : e));
+  if (isPlainObject(raw.brands)) {
+    look.brands = Object.fromEntries(
+      Object.entries(raw.brands).map(([k, v]) => [k, isPlainObject(v) ? { ...v } : v]));
+  }
+  return look;
+}
+
+/* 套用模板：series / events / 粒度 / 起点 一律不动。
+   series 保持原引用，否则 chart.items 挂的还是旧数组，数据和图就分家了 */
+export function applyStyleTemplate(cfg, look) {
+  const layout = clone(cfg.layout);
+  if (look.layout) mergeInto(layout, look.layout);
+  const next = {
+    ...cfg,
+    style: { ...cfg.style, ...(look.style || {}) },
+    layout,
+    export: { ...cfg.export, ...(look.export || {}) },
+    time: { ...cfg.time },
   };
-  const unknown = (obj, list, at) => {
-    if (!isPlainObject(obj)) return;
-    for (const k of Object.keys(obj)) {
-      if (list.includes(k)) continue;
-      if (at === 'style' && k === 'unit') {
-        warnings.push({ path: 'style.unit', message: 'unit 已移到顶层，请写成 "unit": "' + cfg.unit + '"' });
-        continue;
-      }
-      warnings.push({ path: at === 'root' ? k : at + '.' + k, message: '不认识的字段，已忽略' });
-    }
-  };
-  unknown(raw, KNOWN.root, 'root');
-  unknown(raw.time, KNOWN.time, 'time');
-  unknown(raw.style, KNOWN.style, 'style');
-  unknown(raw.layout, KNOWN.layout, 'layout');
-  unknown(raw.export, KNOWN.export, 'export');
-  if (Array.isArray(raw.series)) {
-    raw.series.forEach((s, i) => unknown(s, KNOWN.entry, 'series[' + i + ']'));
+  if (look.unit !== undefined) next.unit = look.unit;
+  if (look.title !== undefined) next.title = look.title;
+  if (look.subtitle !== undefined) next.subtitle = look.subtitle;
+  if (look.decimals !== undefined) next.time.decimals = look.decimals;
+  if (look.events !== undefined) next.events = look.events.map(e => (isPlainObject(e) ? { ...e } : e));
+  if (look.brands) applyBrands(next, look.brands);
+  return next;
+}
+
+/* 样式模板：只有观感字段，没有 series。单独一个入口是为了把话说清楚——
+   用户拿模板当配置导入时不该看到「series 至少要有 1 个条目」 */
+export function validateStyleTemplate(raw) {
+  const errors = [];
+  const warnings = [];
+  if (!isPlainObject(raw)) {
+    errors.push({ path: '(root)', message: '样式模板顶层必须是一个对象 { ... }' });
+    return { errors, warnings, look: null };
+  }
+  /* series 带着数值，模板不许有；events 和 brands 只是标注，允许 */
+  if (raw.series !== undefined) {
+    errors.push({ path: 'series', message: 'series 属于数据，样式模板里不要写；要连数据一起导入请存成完整配置' });
+  }
+  if (isPlainObject(raw.time) && (raw.time.granularity !== undefined || raw.time.start !== undefined)) {
+    errors.push({ path: 'time', message: '模板只带 time.decimals（小数位）；粒度和起点跟着数据走，写在表头或完整配置里' });
   }
 
-  return { errors, warnings, cfg };
+  const look = lookOf(raw);
+  const empty = !Object.keys(look).length;
+  if (empty) {
+    errors.push({ path: '(root)', message: '这个模板没带任何观感字段：至少写 style / layout / export / unit 里的一项' });
+  }
+  /* series 已经给过 error，别再补一条「不认识的字段」；brands 和 events 是模板允许的标注 */
+  const KNOWN = ['$schema', 'meta', 'title', 'subtitle', 'unit', 'time', 'style', 'layout', 'export', 'series', 'events', 'brands'];
+  unknownFields(raw, KNOWN, 'root', { unit: look.unit ?? '' }, warnings);
+  unknownFields(raw.time, ['decimals'], 'time', { unit: '' }, warnings);
+
+  const probe = applyStyleTemplate(makeDefaultConfig(), look);
+  if (!empty) checkLook(probe, raw, errors, warnings);
+  return { errors, warnings, look };
 }

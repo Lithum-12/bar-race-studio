@@ -6,7 +6,8 @@
  * ============================================================ */
 
 import {
-  validateConfig, normalizeConfig, POS_KEYS, VALUE_POS, ICON_POS,
+  validateConfig, normalizeConfig, validateStyleTemplate, applyStyleTemplate,
+  POS_KEYS, VALUE_POS, ICON_POS,
   BAR_SHAPES, EXPORT_FORMATS, DATE_ANIMS, DEFAULT_STYLE, DEFAULT_LAYOUT, DEFAULT_EXPORT,
 } from './config.js';
 import { buildChart, applyPalette, periodIndex } from './series.js';
@@ -16,6 +17,7 @@ import { periodLabel, periodKey, periodTick, parseStart, startHint, GRANULARITIE
 import { FONTS, FONT_SCALE_KEYS } from './text.js';
 import { PALETTES, BG_PRESETS, normalizeHex } from './color.js';
 import { setOptions } from './select.js';
+import { tableToConfig } from './table.js';
 import { exportVideo, exportPngSequence, exportStill, download } from './recorder.js';
 
 const $ = id => document.getElementById(id);
@@ -166,11 +168,12 @@ function mountChart(cfg, keepTime) {
   syncTransport();
 }
 
-function loadRaw(raw, label, keepTime, extra) {
+function loadRaw(raw, label, keepTime, extra, notes) {
   const cfg = normalizeConfig(raw);
   const { errors, warnings } = validateConfig(raw);
   const shown = [...(extra || []), ...errors];
-  showIssues(shown, warnings);
+  /* 表格提醒不阻断载入，所以归到 warn 一档，别标红 */
+  showIssues(shown, [...warnings, ...(notes || [])]);
   if (errors.length) {
     /* 保持上一个能跑的数据集，下拉框也要跟着退回去 */
     if (app.dataset) $('datasetSel').value = app.dataset;
@@ -180,7 +183,10 @@ function loadRaw(raw, label, keepTime, extra) {
   mountChart(cfg, keepTime);
   app.dataset = label;
   syncDrawer();
+  /* 左侧面板每行的「载入/当前」跟着数据集走，不能只在面板打开时算一次 */
+  renderImportLists();
   if (extra && extra.length) toast(extra.length + ' 个文件没能导入，已载入 ' + label);
+  else if (notes && notes.length) toast(notes.length + ' 条表格提醒，见页面下方');
   else if (warnings.length) toast('已载入，另有 ' + warnings.length + ' 条提醒');
   return true;
 }
@@ -231,10 +237,10 @@ function syncPace() {
   $('paceTotal').textContent = total + '（' + app.clock.total + ' 个周期）';
 }
 
-function setPace(value) {
-  const v = Math.max(0.15, Math.min(8, num(value, 1)));
-  app.chart.cfg.style.secondsPerPeriod = v;
-  app.clock.perPeriod = v;
+function setPace(v) {
+  const n = Math.max(0.15, Math.min(8, v));
+  app.chart.cfg.style.secondsPerPeriod = n;
+  app.clock.perPeriod = n;
   syncPace();
 }
 
@@ -402,7 +408,7 @@ function bgPairs() {
   if (!BG_PRESETS.some(p => p.color.toLowerCase() === bg.toLowerCase())) {
     list.push([bg, '当前颜色', { color: bg, note: bg.toUpperCase() }]);
   }
-  list.push([BG_PICK, '从系统色板里挑…', null]);
+  list.push([BG_PICK, '自定义', null]);
   return list;
 }
 
@@ -413,6 +419,9 @@ function syncBgSelect() {
 
 function chooseBg(value) {
   if (value === BG_PICK) {
+    /* 取消系统取色框不会触发 input/change（Windows Chrome 实测），
+       所以开框前就把显示拉回真实颜色，否则触发器一直停在「自定义」且没有色块 */
+    syncBgSelect();
     $('bgCustom').click();
     return;
   }
@@ -440,10 +449,19 @@ function buildControls() {
 
   const on = (id, fn) => $(id).addEventListener('change', e => fn(e.target));
   const text = (id, fn) => $(id).addEventListener('change', e => fn(e.target.value));
+  /* 数字框清空时浏览器给 ''，而 Number('') 是 0——不把空串和非法内容判成失败，
+     就会把 0（或兜底默认值）当成用户意图写回 config，所以空串一律失败并回填当前真实值 */
+  const numInp = (id, cur, apply) => on(id, t => {
+    const raw = String(t.value).trim();
+    const n = Number(raw);
+    if (raw !== '' && Number.isFinite(n)) apply(n);
+    else t.value = String(cur());
+  });
 
   on('granSel', t => patchTime('granularity', t.value));
   text('startInp', v => patchTime('start', v.trim()));
-  on('decSel', t => patchTime('decimals', Math.max(0, Math.min(4, Math.round(num(t.value, 1))))));
+  numInp('decSel', () => app.chart.cfg.time.decimals,
+    n => patchTime('decimals', Math.max(0, Math.min(4, Math.round(n)))));
   text('unitInp', v => { app.chart.cfg.unit = v; });
   text('titleInp', v => { app.chart.cfg.title = v; });
   text('subInp', v => { app.chart.cfg.subtitle = v; });
@@ -461,20 +479,24 @@ function buildControls() {
   on('gridChk', t => patchStyle('showGrid', t.checked));
   on('valueChk', t => patchStyle('showValue', t.checked));
   on('topNSel', t => patchStyle('topN', num(t.value, 10)));
-  on('paceSel', t => setPace(t.value));
-  on('paceInp', t => setPace(t.value));
+  on('paceSel', t => setPace(num(t.value, app.chart.cfg.style.secondsPerPeriod)));
+  numInp('paceInp', () => app.chart.cfg.style.secondsPerPeriod, setPace);
   on('loopChk', t => patchStyle('loop', t.checked));
 
-  on('designWSel', t => patchDesign(num(t.value, 1920), app.chart.cfg.layout.design.height));
-  on('designHSel', t => patchDesign(app.chart.cfg.layout.design.width, num(t.value, 1080)));
-  on('canvasWSel', t => patchCanvas(num(t.value, 1920), app.chart.cfg.layout.canvas.height));
-  on('canvasHSel', t => patchCanvas(app.chart.cfg.layout.canvas.width, num(t.value, 1080)));
+  numInp('designWSel', () => app.chart.cfg.layout.design.width,
+    n => patchDesign(n, app.chart.cfg.layout.design.height));
+  numInp('designHSel', () => app.chart.cfg.layout.design.height,
+    n => patchDesign(app.chart.cfg.layout.design.width, n));
+  numInp('canvasWSel', () => app.chart.cfg.layout.canvas.width,
+    n => patchCanvas(n, app.chart.cfg.layout.canvas.height));
+  numInp('canvasHSel', () => app.chart.cfg.layout.canvas.height,
+    n => patchCanvas(app.chart.cfg.layout.canvas.width, n));
 
   on('fmtSel', t => patchExport('format', t.value));
   on('fpsSel', t => patchExport('fps', num(t.value, 60)));
-  on('exWSel', t => patchExport('width', num(t.value, 1920)));
-  on('exHSel', t => patchExport('height', num(t.value, 1080)));
-  on('brSel', t => patchExport('bitrateMbps', num(t.value, 12)));
+  numInp('exWSel', () => app.chart.cfg.export.width, n => patchExport('width', n));
+  numInp('exHSel', () => app.chart.cfg.export.height, n => patchExport('height', n));
+  numInp('brSel', () => app.chart.cfg.export.bitrateMbps, n => patchExport('bitrateMbps', n));
   on('alphaSel', t => patchExport('transparent', t.checked));
   on('bgSel', t => chooseBg(t.value));
   /* 取色器：input 实时改色；change 收尾，用户取消时把显示拉回真实背景 */
@@ -547,6 +569,7 @@ function renderImportLists() {
       ['移除', '', () => {
         app.session.delete(k);
         refreshDatasets();
+        renderImportLists();
       }],
     ]));
   }
@@ -573,28 +596,96 @@ function readAsText(file) {
   });
 }
 
+/* 表格文件解析出来的提醒不是「导入失败」，走 notes 通道，别混进坏文件计数 */
+const TABLE_EXT = /\.(csv|tsv|txt)$/i;
+const KEY_EXT = /\.(json|csv|tsv|txt)$/i;
+
+/* 没有 series 的 JSON 当成样式模板：只套观感，数据一个字节都不动。
+   这样 CSV 出数据、JSON 存那套调好的样式，两个文件搭配用 */
+function applyTemplate(raw, name) {
+  const { errors, warnings, look } = validateStyleTemplate(raw);
+  if (errors.length) {
+    showIssues(errors, warnings);
+    toast('「' + name + '」不能当样式模板用，见页面下方');
+    return false;
+  }
+  const merged = applyStyleTemplate(app.chart.cfg, look);
+  /* 套完再整体校一遍：模板里的品牌名对不上、事件周期写错，都在这一步露头 */
+  const v = validateConfig(merged);
+  const miss = look.brands
+    ? Object.keys(look.brands).filter(nm => !merged.series.some(s => s.name === nm))
+      .map(nm => ({ path: 'brands.' + nm, message: '当前数据里没有叫「' + nm + '」的条目，这条覆盖没生效' }))
+    : [];
+  const notes = [...warnings, ...v.warnings, ...miss];
+  if (v.errors.length) {
+    showIssues(v.errors, notes);
+    toast('套用后配置不成立，已保持原样');
+    return false;
+  }
+  showIssues([], notes);
+  mountChart(merged, true);
+  syncDrawer();
+  renderImportLists();
+  const parts = Object.keys(look).filter(k => look[k] !== undefined);
+  toast('已把「' + name + '」套到 ' + (app.dataset || '当前数据') + '：' + parts.join(' / ')
+    + (miss.length ? '；' + miss.length + ' 个品牌名没对上' : ''));
+  return true;
+}
+
 async function importFiles(files) {
   const bad = [];
+  const notes = [];
+  const tpls = [];
   let first = null;
   for (const f of files) {
-    const key = f.name.replace(/\.json$/i, '');
+    const text = await readAsText(f);
+    const key = f.name.replace(KEY_EXT, '');
     let parsed;
-    try {
-      parsed = JSON.parse(await readAsText(f));
-    } catch (e) {
-      bad.push({ path: f.name, message: e instanceof SyntaxError ? '不是合法 JSON：' + e.message : e.message });
-      continue;
+    if (TABLE_EXT.test(f.name)) {
+      const res = tableToConfig(text, key);
+      if (!res.cfg) { bad.push(...res.problems); continue; }
+      parsed = res.cfg;
+      notes.push(...res.problems);
+    } else {
+      try {
+        parsed = JSON.parse(text);
+      } catch (e) {
+        bad.push({ path: f.name, message: e instanceof SyntaxError ? '不是合法 JSON：' + e.message : e.message });
+        continue;
+      }
+      /* 顶层没有 series 就不是数据集，别塞进下拉框 */
+      if (!Array.isArray(parsed.series)) { tpls.push({ raw: parsed, name: key }); continue; }
     }
     app.session.set(key, parsed);
     if (!first) first = key;
   }
+
   if (!first) {
+    /* 只丢了模板过来：套在当前数据上 */
+    for (const t of tpls) applyTemplate(t.raw, t.name);
     if (bad.length) showIssues(bad, []);
     return;
   }
   await refreshDatasets();
   $('datasetSel').value = first;
-  loadRaw(app.session.get(first), first, false, bad);
+  loadRaw(app.session.get(first), first, false, bad, notes);
+  /* 一批里既有数据又有样式时，样式后套，才不会被数据自带的默认值顶掉 */
+  for (const t of tpls) applyTemplate(t.raw, t.name);
+}
+
+/* 剪贴板那条路：Excel/WPS 里复制一块区域，粘进文本框就能转成数据集 */
+function pasteTable() {
+  const text = $('pasteBox').value;
+  if (!text.trim()) { toast('先选中表格区域按 Ctrl+C，再回来粘贴'); return; }
+  let key = '粘贴的表格';
+  for (let n = 2; app.session.has(key); n++) key = '粘贴的表格 ' + n;
+  const res = tableToConfig(text, key);
+  if (!res.cfg) { showIssues(res.problems, []); toast('这块表没能认出来'); return; }
+  app.session.set(key, res.cfg);
+  refreshDatasets().then(() => {
+    $('datasetSel').value = key;
+    loadRaw(res.cfg, key, false, [], res.problems);
+  });
 }
 
 async function saveConfig() {
@@ -766,6 +857,7 @@ function wireTransport() {
   $('btnImport').addEventListener('click', () => setPanel(panel === 'left' ? null : 'left'));
   $('btnImportClose').addEventListener('click', () => setPanel(null));
   $('btnPick').addEventListener('click', () => $('fileInput').click());
+  $('btnPaste').addEventListener('click', pasteTable);
   $('fileInput').addEventListener('change', async e => {
     await importFiles([...e.target.files]);
     e.target.value = '';
@@ -791,9 +883,9 @@ function wireTransport() {
     node.addEventListener('drop', async e => {
       e.preventDefault();
       node.classList.remove('is-drop');
-      const json = [...e.dataTransfer.files].filter(f => /\.json$/i.test(f.name));
-      if (json.length) await importFiles(json);
-      else toast('只认 *.json 配置文件');
+      const ok = [...e.dataTransfer.files].filter(f => /\.(json|csv|tsv|txt)$/i.test(f.name));
+      if (ok.length) await importFiles(ok);
+      else toast('认 *.json 配置和 *.csv / *.tsv 表格，其他格式请先在 Excel 里另存');
     });
   }
 
@@ -829,8 +921,12 @@ function frame(now) {
   if (!(dt > 0) || dt > 0.05) dt = 1 / 60;
 
   if (!app.busy) {
-    /* 循环播放时靠重播动画归位，不能沿用上一轮的缓存位置 */
-    if (app.clock.tick(dt)) resetMotion();
+    /* 循环播放时靠重播动画归位，不能沿用上一轮的缓存位置；
+       走到尽头时时钟自己把 playing 关了，按钮图标得跟着换，否则一直显示暂停 */
+    if (app.clock.tick(dt)) {
+      resetMotion();
+      updatePlayIcon();
+    }
     app.scene.draw(app.chart, app.clock.t, dt);
 
     const p = app.clock.total ? app.clock.t / app.clock.total : 0;

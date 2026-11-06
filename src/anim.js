@@ -29,10 +29,10 @@ export function createClock() {
       this.atEnd = false;
     },
 
+    /* 只管回到起点，播不播由调用方决定：暂停状态下按「回到开头」不该自己开始放 */
     restart() {
       this.t = 0;
       this.atEnd = false;
-      this.playing = true;
     },
 
     /* 返回本次 tick 是否刚好走到终点 */

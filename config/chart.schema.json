@@ -2,8 +2,9 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://example.invalid/bar/chart.schema.json",
   "title": "条形动画数据集",
+  "description": "两种文件都用这套字段：完整数据集需要 time.granularity / time.start / series；只当样式模板时可以不带 series，改由 brands 按品牌名挂颜色和图标。页面里的校验器会按这两种情况分别报错。",
   "type": "object",
-  "required": ["title", "time", "series"],
+  "required": ["title"],
   "additionalProperties": false,
   "properties": {
     "meta": {
@@ -19,8 +20,8 @@
     "unit": { "type": "string", "maxLength": 12, "description": "数值单位，直接拼在数字后面，例如 万辆" },
     "time": {
       "type": "object",
-      "required": ["granularity", "start"],
       "additionalProperties": false,
+      "description": "数据集要 granularity 和 start；样式模板只带 decimals",
       "properties": {
         "granularity": { "enum": ["year", "quarter", "month", "day"], "default": "month" },
         "start": {
@@ -60,6 +61,18 @@
         "properties": {
           "period": { "type": "string", "description": "与 time.start 同一种写法" },
           "text": { "type": "string", "minLength": 1, "maxLength": 80 }
+        }
+      }
+    },
+    "brands": {
+      "type": "object",
+      "description": "按品牌名挂观感，靠名字对上 series[].name。数据来自 CSV 时用这个代替 series；名字对不上页面会提醒哪条没生效。",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "color": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" },
+          "icon": { "type": "string", "description": "内联 SVG 字符串，或图片路径 / 地址" }
         }
       }
     },

@@ -1,0 +1,105 @@
+{
+  "title": "全球手机销量统计图",
+  "subtitle": "2012-01 至 2026-12 · 月度 · 数值为演示用编造数据，颜色是自配的近似色，图标是自制字母牌（非官方标识）",
+  "unit": "千台",
+  "time": { "decimals": 0 },
+
+  "brands": {
+    "三星": {
+      "color": "#1B3B8B",
+      "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><rect width=\"48\" height=\"48\" rx=\"10\" fill=\"#1B3B8B\"/><ellipse cx=\"24\" cy=\"24\" rx=\"15\" ry=\"8\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3.4\"/><circle cx=\"24\" cy=\"24\" r=\"3.4\" fill=\"#fff\"/></svg>"
+    },
+    "苹果": {
+      "color": "#8E9092",
+      "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><rect width=\"48\" height=\"48\" rx=\"10\" fill=\"#8E9092\"/><circle cx=\"21\" cy=\"26\" r=\"11\" fill=\"#fff\"/><path d=\"M30 17l6-5v10z\" fill=\"#fff\"/></svg>"
+    },
+    "华为": {
+      "color": "#C7000B",
+      "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><rect width=\"48\" height=\"48\" rx=\"10\" fill=\"#C7000B\"/><path d=\"M24 9c4 6 6 11 6 15s-2 8-6 11c-4-3-6-7-6-11s2-9 6-15z\" fill=\"#fff\"/><path d=\"M9 24c6-4 11-6 15-6s8 2 11 6c-3 4-7 6-11 6s-9-2-15-6z\" fill=\"#fff\" opacity=\".45\"/></svg>"
+    },
+    "小米": {
+      "color": "#FF6900",
+      "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><rect width=\"48\" height=\"48\" rx=\"10\" fill=\"#FF6900\"/><text x=\"24\" y=\"34\" font-family=\"sans-serif\" font-size=\"28\" font-weight=\"700\" fill=\"#fff\" text-anchor=\"middle\">小</text></svg>"
+    },
+    "OPPO": {
+      "color": "#1BA784",
+      "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><rect width=\"48\" height=\"48\" rx=\"10\" fill=\"#1BA784\"/><text x=\"24\" y=\"33\" font-family=\"sans-serif\" font-size=\"24\" font-weight=\"700\" fill=\"#fff\" text-anchor=\"middle\">O</text></svg>"
+    },
+    "vivo": {
+      "color": "#4167B8",
+      "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><rect width=\"48\" height=\"48\" rx=\"10\" fill=\"#4167B8\"/><text x=\"24\" y=\"33\" font-family=\"sans-serif\" font-size=\"24\" font-weight=\"700\" fill=\"#fff\" text-anchor=\"middle\">V</text></svg>"
+    },
+    "传音": {
+      "color": "#0B8FA6",
+      "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><rect width=\"48\" height=\"48\" rx=\"10\" fill=\"#0B8FA6\"/><path d=\"M14 30a10 10 0 0 1 20 0z\" fill=\"#fff\"/><circle cx=\"24\" cy=\"17\" r=\"4.5\" fill=\"#fff\"/></svg>"
+    },
+    "Realme": {
+      "color": "#FFC800",
+      "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><rect width=\"48\" height=\"48\" rx=\"10\" fill=\"#FFC800\"/><text x=\"24\" y=\"33\" font-family=\"sans-serif\" font-size=\"24\" font-weight=\"700\" fill=\"#1A1917\" text-anchor=\"middle\">R</text></svg>"
+    },
+    "一加": {
+      "color": "#CB0003",
+      "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><rect width=\"48\" height=\"48\" rx=\"10\" fill=\"#CB0003\"/><text x=\"24\" y=\"34\" font-family=\"sans-serif\" font-size=\"27\" font-weight=\"700\" fill=\"#fff\" text-anchor=\"middle\">1</text></svg>"
+    },
+    "诺基亚": {
+      "color": "#12467B",
+      "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><rect width=\"48\" height=\"48\" rx=\"10\" fill=\"#12467B\"/><path d=\"M12 34V14h5l8 13V14h5v20h-5l-8-13v13z\" fill=\"#fff\"/></svg>"
+    },
+    "红米": {
+      "color": "#E2571F",
+      "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><rect width=\"48\" height=\"48\" rx=\"10\" fill=\"#E2571F\"/><text x=\"24\" y=\"34\" font-family=\"sans-serif\" font-size=\"27\" font-weight=\"700\" fill=\"#fff\" text-anchor=\"middle\">红</text></svg>"
+    },
+    "荣耀": {
+      "color": "#2B3A8F",
+      "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 48\"><rect width=\"48\" height=\"48\" rx=\"10\" fill=\"#2B3A8F\"/><path d=\"M24 10l5 10 11 1-8 8 2 11-10-5-10 5 2-11-8-8 11-1z\" fill=\"#fff\"/></svg>"
+    }
+  },
+
+  "events": [
+    { "period": "2013-08", "text": "LG 最后一次进前 12，此后没再回来" },
+    { "period": "2015-08", "text": "诺基亚最后一次上榜，头部格局开始换人" },
+    { "period": "2018-06", "text": "传音首次进前 12" },
+    { "period": "2019-02", "text": "华为第一次坐上榜首，结束三星连庄" },
+    { "period": "2022-03", "text": "苹果登顶，是这张表里第三个榜首" },
+    { "period": "2022-07", "text": "三星与苹果只差 33 千台，全程最小" },
+    { "period": "2024-11", "text": "华为最后一次进前 12，末期回落到 320" },
+    { "period": "2026-11", "text": "传音冲到 5462 千台，本表峰值" }
+  ],
+
+  "style": {
+    "font": "sans",
+    "fontScale": 0.92,
+    "namePos": "inL",
+    "rankPos": "outL",
+    "valuePos": "auto",
+    "iconPos": "outL",
+    "barShape": "small",
+    "palette": "jewel",
+    "bg": "#141513",
+    "topN": 12,
+    "secondsPerPeriod": 0.35,
+    "loop": false,
+    "showGrid": true,
+    "showValue": true,
+    "sortDir": "desc",
+    "dateAnim": "fade"
+  },
+  "layout": {
+    "design": { "width": 1920, "height": 1080 },
+    "canvas": { "width": 1920, "height": 1080 },
+    "plot": { "left": 252, "right": 1508, "top": 176, "bottom": 942 },
+    "bar": { "heightRatio": 0.74, "maxHeight": 52 },
+    "margin": 48,
+    "padIn": 16,
+    "gapIn": 12,
+    "gapOut": 14
+  },
+  "export": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 60,
+    "bitrateMbps": 16,
+    "format": "webm",
+    "transparent": false
+  }
+}

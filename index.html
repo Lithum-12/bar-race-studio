@@ -22,7 +22,6 @@
       </svg>
       导入配置
     </button>
-    <button class="btn" id="btnSave" title="把当前配置写回 config 文件">写回文件</button>
 
     <div class="spacer"></div>
 
@@ -96,13 +95,23 @@
     <button class="btn" id="btnPick">选择文件</button>
   </header>
   <div class="body">
-    <div class="drop" id="dropzone" tabindex="0" role="button" aria-label="把 JSON 配置文件拖到这里，或按回车选择文件">
+    <div class="drop" id="dropzone" tabindex="0" role="button" aria-label="把 JSON 或 CSV 文件拖到这里，或按回车选择文件">
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
         <path d="M12 16V4m0 0L7.6 8.4M12 4l4.4 4.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M4 15v4h16v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
       </svg>
-      <p class="dz-main">把 <code>*.json</code> 拖到这里</p>
+      <p class="dz-main">把 <code>*.json</code> 或 <code>*.csv</code> 拖到这里</p>
       <p class="dz-sub">也可以按回车，或点上面的「选择文件」。一次能拖多个，它们会出现在下面「本次会话导入」里。</p>
+    </div>
+
+    <div class="group">
+      <h4>从表格粘贴</h4>
+      <textarea id="pasteBox" class="paste" rows="5" spellcheck="false"
+        placeholder="Excel / WPS 里选中一块区域 Ctrl+C，在这里 Ctrl+V&#10;&#10;宽表： 名称, 2024, 2025, …&#10;长表： 名称, 周期, 数值"></textarea>
+      <div class="paste-bar">
+        <button class="btn" id="btnPaste">转成数据集</button>
+        <span class="paste-note">空格子按「没有数据」处理，条目会入场或退场</span>
+      </div>
     </div>
 
     <div class="group">
@@ -117,6 +126,7 @@
   </div>
   <footer>
     <div class="spacer"></div>
+    <button class="btn" id="btnSave" title="把当前配置写回 config 文件">写回文件</button>
     <button class="btn key" id="btnImportClose">关闭</button>
   </footer>
 </aside>
@@ -174,9 +184,10 @@
       <h4>颜色</h4>
       <div class="grid2">
         <div class="fld"><span class="lab">配色方案</span><div class="sel" id="paletteSel"></div></div>
-        <div class="fld"><span class="lab">画布背景</span><div class="sel" id="bgSel"></div></div>
+        <div class="fld"><span class="lab">画布背景</span><div class="sel" id="bgSel"></div>
+          <input type="color" id="bgCustom" class="picker" aria-label="自定义背景色" />
+        </div>
       </div>
-      <input type="color" id="bgCustom" class="picker" aria-label="自定义背景色" />
     </div>
 
     <div class="group">
@@ -228,7 +239,11 @@
       <dl class="doc">
         <div>
           <dt>改数据</dt>
-          <dd>编辑 <code>config/</code> 里的 JSON。每个条目一个 <code>{ name, values }</code>，<code>values</code> 按 <code>time.granularity</code> 的周期依次填数；填 <code>null</code> 表示该周期不在场——开头一段是中途加入，结尾一段是退出。<code>color</code>、<code>icon</code> 可省略，省略时自动配色并生成圆牌徽标。</dd>
+          <dd>手上有 Excel / WPS 表就先别写 JSON：把 <code>.csv</code> / <code>.tsv</code> 拖到画布上，或在表里选中区域 Ctrl+C、到左侧「从表格粘贴」Ctrl+V。宽表（<code>名称,2024,2025,…</code>）和长表（<code>名称,周期,数值</code>）都自动识别，粒度从表头读，空格子按「该周期没有数据」处理。要长期维护再点「写回文件」落成 <code>config/</code> 里的 JSON：每个条目一个 <code>{ name, values }</code>，<code>values</code> 按 <code>time.granularity</code> 的周期依次填数，填 <code>null</code> 表示该周期不在场——开头一段是中途加入，结尾一段是退出。<code>color</code>、<code>icon</code> 可省略，省略时自动配色并生成圆牌徽标。</dd>
+        </div>
+        <div>
+          <dt>样式模板</dt>
+          <dd>数据用 CSV、观感用一个不带 <code>series</code> 的 JSON 管：顶层写 <code>style</code> / <code>layout</code> / <code>export</code> / <code>unit</code> / <code>title</code> / <code>subtitle</code> / <code>time.decimals</code>，还可以带两样标注——<code>brands</code> 按品牌名挂颜色和图标（<code>"三星": { "color": "#1B3B8B", "icon": "&lt;svg …&gt;" }</code>，名字对不上会提醒哪条没生效，数值不动），<code>events</code> 写大事件。拖进来只套观感和标注，模板里没写的键保持现状；两个文件一起拖时先读数据再套模板。完整配置里也能直接写 <code>brands</code>。</dd>
         </div>
         <div>
           <dt>实时看效果</dt>
@@ -272,7 +287,7 @@
   </div>
 </div>
 
-<input type="file" id="fileInput" accept=".json,application/json" class="hidden" multiple />
+<input type="file" id="fileInput" accept=".json,.csv,.tsv,.txt,application/json,text/csv" class="hidden" multiple />
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script type="module" src="./src/app.js"></script>

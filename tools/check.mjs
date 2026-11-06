@@ -235,5 +235,223 @@ ok('窄画布数值仍在', N.text.some(x => x.includes('台')), N.text.filter(x
   ok('每周期秒数过小被拒', tooFast.errors.some(e => e.path === 'style.secondsPerPeriod'), tooFast.errors);
 }
 
+/* ---------- 6. 表格导入：CSV/TSV/剪贴板 ---------- */
+{
+  const { tableToConfig, sniffDelimiter, parseNumber, sniffGranularity } = await import('../src/table.js');
+
+  ok('制表符分隔识别为 TSV', sniffDelimiter('名称\t2024\t2025\n甲\t1\t2') === '\t');
+  ok('分号分隔识别', sniffDelimiter('名称;2024;2025\n甲;1;2') === ';');
+
+  const wide = tableToConfig('名称,2024,2025,2026\n云帆,12,15,18\n星辰,20,14,9', '销量');
+  ok('宽表解析出两条 series', wide.cfg && wide.cfg.series.length === 2, wide);
+  ok('宽表粒度=年、起点=2024', wide.cfg && wide.cfg.time.granularity === 'year' && wide.cfg.time.start === '2024', wide.cfg && wide.cfg.time);
+  ok('宽表数值按列序展开', wide.cfg && wide.cfg.series[0].values.join(',') === '12,15,18', wide.cfg && wide.cfg.series[0]);
+  ok('宽表标题取文件名', wide.cfg && wide.cfg.title === '销量');
+  ok('宽表产出能过既有校验', (() => {
+    const v = validateConfig(wide.cfg);
+    return v.errors.length === 0;
+  })(), validateConfig(wide.cfg).errors);
+
+  const tsv = tableToConfig('名称\t2024\t2025\r\n甲\t1,712\t1,803\r\n乙\t\t900', '粘贴的表格');
+  ok('剪贴板千分位被吃掉', tsv.cfg && tsv.cfg.series[0].values[0] === 1712, tsv.cfg && tsv.cfg.series[0]);
+  ok('空格子当作没有数据（入场/退场语义）',
+    tsv.cfg && tsv.cfg.series[1].values[0] === null && tsv.cfg.series[1].values[1] === 900, tsv.cfg && tsv.cfg.series[1]);
+
+  const long = tableToConfig('名称,周期,数值\n甲,2025-02,7\n乙,2025-01,5\n甲,2025-01,4\n乙,2025-03,9', '长表');
+  ok('长表按周期排序展开', long.cfg && long.cfg.time.start === '2025-01' && long.cfg.time.granularity === 'month', long.cfg && long.cfg.time);
+  ok('长表缺的周期补成 null 而不是 0',
+    long.cfg && long.cfg.series[0].values.join(',') === '4,7,', long.cfg && long.cfg.series[0]);
+  ok('长表第二条对齐到同一周期轴',
+    long.cfg && long.cfg.series[1].values.join(',') === '5,,9', long.cfg && long.cfg.series[1]);
+
+  const q = tableToConfig('城市,2024Q1,2024Q2\n甲,1,2', '季度表');
+  ok('季度表头识别为 quarter', q.cfg && q.cfg.time.granularity === 'quarter' && q.cfg.time.start === '2024-Q1', q.cfg && q.cfg.time);
+  const d = tableToConfig('城市,2024/1/5,2024/1/6\n甲,1,2', '日表');
+  ok('斜杠日期识别为 day', d.cfg && d.cfg.time.granularity === 'day' && d.cfg.time.start === '2024-1-5', d.cfg && d.cfg.time);
+  const cn = sniffGranularity(['2024年', '2025年', '2026年']);
+  ok('中文年月写法归一到 year', cn === 'year', cn);
+
+  ok('小数位从表里推断', tableToConfig('名称,2024,2025\n甲,1.25,2.5', 'x').cfg.time.decimals === 2,
+    tableToConfig('名称,2024,2025\n甲,1.25,2.5', 'x').cfg.time);
+
+  const unitish = tableToConfig('名称,2024,2025\n甲,1,712万', '带单位');
+  ok('带「万」的格子报错而不是猜量级',
+    !unitish.cfg || unitish.problems.some(p => /万|单位/.test(p.message)), unitish.problems);
+  ok('纯数字判定：负值和小数都算数', parseNumber('-40.5').value === -40.5 && parseNumber('—').value === null);
+
+  const junk = tableToConfig('名称,备注,负责人\n甲,ok,张三', '不是数据表');
+  ok('表头不是周期时给可操作的提示', !junk.cfg && junk.problems[0].message.includes('宽表'), junk.problems);
+
+  const dup = tableToConfig('名称,2024,2025\n甲,1,2\n甲,3,4', '重名');
+  ok('重名条目报出来', dup.problems.some(p => p.message.includes('两次')), dup.problems);
+
+  const oneLine = tableToConfig('名称,2024\n甲,1', '单年表');
+  ok('只有一个周期也能载入（不报错）', !!oneLine.cfg && oneLine.cfg.series[0].values.length === 1, oneLine);
+  ok('只有一行内容算失败', (() => {
+    const r = tableToConfig('名称,2024,2025', '空表');
+    return !r.cfg && r.problems[0].message.includes('行');
+  })());
+
+  const bom = tableToConfig('﻿名称,2024,2025\r\n甲,1,2\r\n', 'BOM 表');
+  ok('BOM + CRLF + 尾随空行不影响解析', bom.cfg && bom.cfg.series[0].name === '甲' && bom.cfg.series[0].values.join() === '1,2', bom);
+
+  const quoted = tableToConfig('名称,2024,2025\n"云帆,华东",1,2', '引号');
+  ok('引号内的逗号不当成分隔符', quoted.cfg && quoted.cfg.series[0].name === '云帆,华东', quoted.cfg && quoted.cfg.series[0]);
+
+  /* 闭环：表格解析出来的配置要真能走到画布，不只是过校验 */
+  {
+    const ch = buildChart(normalizeConfig(tsv.cfg));
+    applyPalette(ch);
+    await new Promise(r => setTimeout(r, 5));
+    calls = [];
+    scene.draw(ch, 1, 1 / 60, {});
+    const texts = calls.filter(c => c[0] === 'fillText').map(c => String(c[1]));
+    const bars = calls.filter(c => c[0] === 'roundRect').length;
+    ok('表格产出的配置真能画到画布上',
+      texts.includes('甲') && texts.includes('乙') && bars >= 2, { texts: texts.slice(0, 10), bars });
+    ok('表里的空格子中转成「晚入场」而不是 0',
+      ch.items.some(it => it.name === '乙' && it.values[0] === null && it.values[1] === 900),
+      ch.items.map(it => it.name + ':' + it.values.join('/')));
+  }
+}
+
+/* ---------- 7. 样式模板：JSON 只套观感，不动数据 ---------- */
+{
+  const { validateStyleTemplate, applyStyleTemplate, lookOf } = await import('../src/config.js');
+  const { readFileSync } = await import('node:fs');
+  const tplRaw = JSON.parse(readFileSync(new URL('../examples/全球手机销量统计图.样式.json', import.meta.url), 'utf8'));
+  const tpl = validateStyleTemplate(tplRaw);
+  ok('随表的样式模板本身没有错误', tpl.errors.length === 0, tpl.errors);
+  ok('模板带出 unit / title / decimals',
+    tpl.look.unit === '千台' && tpl.look.title === '全球手机销量统计图' && tpl.look.decimals === 0, tpl.look);
+
+  /* 模板配的是手机那张表，就用手机表的数据来验（配错数据集另有断言） */
+  const phoneCsv = readFileSync(new URL('../examples/全球手机销量统计图.csv', import.meta.url), 'utf8');
+  const { tableToConfig } = await import('../src/table.js');
+  const phone = normalizeConfig(tableToConfig(phoneCsv, '手机').cfg);
+  const merged = applyStyleTemplate(phone, tpl.look);
+  ok('套用后样式生效', merged.style.topN === 12 && merged.style.secondsPerPeriod === 0.35
+    && merged.style.dateAnim === 'fade' && merged.layout.plot.left === 252, merged.style);
+  ok('套用不动原配置：phone.series 那组对象没被加颜色',
+    phone.series.every(s => s.color === undefined && s.icon === undefined), phone.series[0]);
+  ok('套用后数值数组仍是同一批（没复制没改写）',
+    merged.series.every((s, i) => s.values === phone.series[i].values), 'values 换了引用');
+  ok('套用后 events 换成模板的 8 条', merged.events.length === 8 && merged.events !== phone.events, merged.events.length);
+  ok('套用后数值一根没动',
+    merged.series[0].values === phone.series[0].values && merged.series.length === phone.series.length);
+  ok('配对正确的模板套上去后仍是合法完整配置',
+    validateConfig(merged).errors.length === 0, validateConfig(merged).errors.slice(0, 3));
+  ok('套用不动时间轴：粒度与起点跟着数据',
+    merged.time.granularity === phone.time.granularity && merged.time.start === phone.time.start, merged.time);
+  ok('品牌覆盖真的落到 series 上',
+    merged.series.filter(s => s.icon).length === 12 && merged.series.find(s => s.name === '三星').color === '#1B3B8B',
+    merged.series.filter(s => s.icon).length);
+  /* 拿手机时间线的模板去套 2024 年只 35 期的表，必须被整体校验拦下 */
+  const base = normalizeConfig(JSON.parse(readFileSync(new URL('../config/auto-sales.json', import.meta.url), 'utf8')));
+  const mismatch = validateConfig(applyStyleTemplate(base, tpl.look));
+  ok('模板和数据时间线不匹配时报错而不是静默画歪',
+    mismatch.errors.length >= 1 && mismatch.errors.every(e => e.path.startsWith('events')),
+    mismatch.errors.slice(0, 2));
+
+  /* 模板没写的键不该用默认值顶掉现状 */
+  const partial = validateStyleTemplate({ style: { bg: '#FFFFFF' } });
+  const m2 = applyStyleTemplate(base, partial.look);
+  ok('只写 bg 的模板不会重置 topN 和节奏',
+    m2.style.bg === '#FFFFFF' && m2.style.topN === base.style.topN
+    && m2.style.secondsPerPeriod === base.style.secondsPerPeriod, m2.style);
+  ok('部分 layout 深合并，其余键保留',
+    (() => {
+      const only = applyStyleTemplate(base, lookOf({ layout: { plot: { left: 300 } } }));
+      return only.layout.plot.left === 300 && only.layout.plot.right === base.layout.plot.right;
+    })(), applyStyleTemplate(base, lookOf({ layout: { plot: { left: 300 } } })).layout.plot);
+
+  const withData = validateStyleTemplate({ style: { topN: 8 }, series: [{ name: '甲', values: [1, 2] }] });
+  ok('模板里写 series 会被拒并说清原因',
+    withData.errors.some(e => e.path === 'series' && e.message.includes('数据')), withData.errors);
+  ok('同一个键不会既报 error 又报「不认识的字段」',
+    !withData.warnings.some(w => w.path === 'series'), withData.warnings);
+  const withTime = validateStyleTemplate({ time: { granularity: 'year' }, unit: '台' });
+  ok('模板里写粒度/起点会被拒（只有 decimals 可带）',
+    withTime.errors.some(e => e.path === 'time' && e.message.includes('decimals')), withTime.errors);
+  ok('空模板被拒', validateStyleTemplate({}).errors.length === 1);
+  ok('模板复用同一套观感校验：topN 越界照样报错',
+    validateStyleTemplate({ style: { topN: 99 } }).errors.some(e => e.path === 'style.topN'),
+    validateStyleTemplate({ style: { topN: 99 } }).errors);
+  ok('模板里的未知字段给提醒不给错误',
+    validateStyleTemplate({ style: { topN: 8 }, hue: 3 }).warnings.some(w => w.path === 'hue'),
+    validateStyleTemplate({ style: { topN: 8 }, hue: 3 }));
+
+  /* 品牌覆盖：CSV 出数据、JSON 出颜色和 logo，靠名字对上 */
+  const LOGO = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="8"/></svg>';
+  const withBrands = normalizeConfig({
+    time: { granularity: 'year', start: '2020' },
+    series: [{ name: '甲', values: [1, 2, 3] }, { name: '乙', values: [4, 5, 6] }],
+    brands: { 甲: { color: '#111111', icon: LOGO } },
+  });
+  ok('brands 按名字挂上 color 和 icon',
+    withBrands.series[0].color === '#111111' && withBrands.series[0].icon === LOGO, withBrands.series[0]);
+  ok('没点名的品牌原样不动', withBrands.series[1].color === undefined && withBrands.series[1].icon === undefined,
+    withBrands.series[1]);
+  ok('brands 不原地改用户给的数组',
+    (() => {
+      const raw = { series: [{ name: '甲', values: [1, 2] }] };
+      normalizeConfig({ time: { granularity: 'year', start: '2020' }, series: raw.series, brands: { 甲: { color: '#222222' } } });
+      return raw.series[0].color === undefined;
+    })());
+  const badName = validateConfig({
+    time: { granularity: 'year', start: '2020' },
+    series: [{ name: '甲', values: [1, 2, 3] }],
+    brands: { 没这个牌子: { color: '#111111' } },
+  });
+  ok('品牌名对不上给提醒（不是静默失效）',
+    badName.errors.length === 0 && badName.warnings.some(w => w.path === 'brands.没这个牌子'), badName.warnings);
+  const badColor = validateConfig({
+    time: { granularity: 'year', start: '2020' },
+    series: [{ name: '甲', values: [1, 2, 3] }],
+    brands: { 甲: { color: '黑色' } },
+  });
+  ok('brands 里的非法颜色照样报错', badColor.errors.some(e => e.path === 'brands.甲.color'), badColor.errors);
+
+  /* 模板带标注：events 和 brands 允许，series 仍然拒 */
+  const anno = validateStyleTemplate({
+    style: { topN: 6 },
+    events: [{ period: '2024-03', text: '放量' }],
+    brands: { 甲: { color: '#111111' } },
+  });
+  ok('模板可以带 events 和 brands', anno.errors.length === 0
+    && anno.look.events.length === 1 && anno.look.brands.甲.color === '#111111', anno.errors);
+  const cur = normalizeConfig({
+    time: { granularity: 'month', start: '2024-01' },
+    series: [{ name: '甲', values: [1, 2, 3] }, { name: '乙', values: [3, 2, 1] }],
+    events: [{ period: '2024-01', text: '旧标注' }],
+  });
+  const applied = applyStyleTemplate(cur, anno.look);
+  ok('套用后 events 换成模板的、数值一根没动',
+    applied.events.length === 1 && applied.events[0].text === '放量'
+    && applied.series[0].values === cur.series[0].values && applied.series[1].values === cur.series[1].values,
+    applied.events);
+  ok('套用后品牌色挂上了', applied.series[0].color === '#111111' && applied.series[1].color === undefined,
+    applied.series.map(s => s.color));
+  ok('只有 brands 的模板不算空模板', validateStyleTemplate({ brands: { 甲: { color: '#111111' } } }).errors.length === 0);
+
+  /* 上一轮那个 bug：指定了 color 就不该丢自动圆牌徽标 */
+  {
+    const ch = buildChart(normalizeConfig({
+      time: { granularity: 'year', start: '2020' },
+      series: [{ name: '钉了色', values: [1, 2], color: '#C2185B' }, { name: '自动的', values: [2, 1] }],
+    }));
+    applyPalette(ch);
+    await new Promise(r => setTimeout(r, 5));
+    const pinned = ch.items.find(it => it.name === '钉了色');
+    const auto = ch.items.find(it => it.name === '自动的');
+    ok('指定 color 的品牌仍有自动徽标',
+      !!ch.icons.get(pinned.idx) && ch.icons.get(pinned.idx).src.startsWith('data:image/svg'), ch.icons.get(pinned.idx));
+    ok('自动徽标用的是这个品牌自己的颜色',
+      ch.icons.get(pinned.idx).src.includes(encodeURIComponent('#C2185B')), decodeURIComponent(ch.icons.get(pinned.idx).src));
+    ok('没指定颜色的仍走配色方案',
+      auto.color === '#3B6FE0' || /^#[0-9a-f]{6}$/i.test(auto.color), auto.color);
+  }
+}
+
 console.info('\n断言 ' + n + ' 条，失败 ' + bad);
 process.exit(bad ? 1 : 0);
